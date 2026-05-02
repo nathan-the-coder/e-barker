@@ -1,0 +1,26 @@
+{
+  "name": "e-barker-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "bootstrap": "^5.3.8",
+    "bootswatch": "^5.3.8",
+    "chart.js": "^4.4.0",
+    "jwt-decode": "^4.0.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.6.0",
+    "sweetalert2": "^11.26.24",
+    "sweetalert2-react-content": "^5.1.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "vite": "^8.0.10"
+  }
+}

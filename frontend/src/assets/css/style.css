@@ -1,0 +1,116 @@
+/* FirebaseUI Bootstrap Compatibility */
+.firebaseui-card-header {
+  display: none;
+}
+
+.firebaseui-card-content {
+  padding: 0;
+}
+
+.firebaseui-textfield {
+  margin-bottom: 16px;
+}
+
+.firebaseui-textfield-input {
+  display: block;
+  width: 100%;
+  padding: 0.375rem 0.75rem;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #212529;
+  background-color: #fff;
+  background-clip: padding-box;
+  border: 1px solid #ced4da;
+  border-radius: 0.375rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.firebaseui-textfield-input:focus {
+  color: #212529;
+  background-color: #fff;
+  border-color: #86b7fe;
+  outline: 0;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 254, 0.25);
+}
+
+.firebaseui-button {
+  display: inline-block;
+  font-weight: 400;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+  border: 1px solid transparent;
+  padding: 0.375rem 0.75rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  border-radius: 0.375rem;
+  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.firebaseui-idp-button {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  border-radius: 0.375rem;
+  border: 1px solid #ced4da;
+  background-color: #fff;
+  color: #212529;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.firebaseui-idp-button:hover {
+  background-color: #f8f9fa;
+  border-color: #86b7fe;
+}
+
+.firebaseui-idp-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.firebaseui-link {
+  color: #0d6efd;
+  text-decoration: underline;
+}
+
+.firebaseui-link:hover {
+  color: #0a58ca;
+}
+
+.firebaseui-form-links {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.firebaseui-error {
+  color: #dc3545;
+  font-size: 0.875rem;
+  margin-top: 4px;
+}
+
+.firebaseui-list-item {
+  list-style: none;
+}
+
+.queue-card {
+  border-left: 5px solid var(--bs-primary);
+  transition: 0.3s;
+}
+
+.next-in-line {
+  border-left: 5px solid var(--bs-success);
+  background-color: rgba(var(--bs-success-rgb), 0.1);
+  transform: scale(1.02);
+}
+
+.stats-card {
+  background: var(--bs-primary);
+  color: white;
+}
