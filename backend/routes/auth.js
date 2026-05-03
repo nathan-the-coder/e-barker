@@ -55,12 +55,13 @@ router.post("/login", async (req, res) => {
     }
 
     // Find user (include password for comparison)
-    const user = await User.findOne({ email }).select("+password");
+    const user = await User.findOne({ email }).select({ password: 1, email: 1, role: 1, name: 1, username: 1 });
 
-    const passwordMatch = user ? await bcrypt.compare(password, user.password) : false;
-    if (!user || !passwordMatch) {
+    if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
 
     const token = generateToken(user);
     const userObj = user.toObject({ virtuals: true });
@@ -165,7 +166,7 @@ router.get("/me", async (req, res) => {
     const token = authHeader.split("Bearer ")[1];
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    const user = await User.findById(decoded.userId).select("-password").populate('tricycleId', 'bodyNumber');
+    const user = await User.findById(decoded.userId).select("-password").populate('vehicleId', 'bodyNumber');
     if (!user) {
       console.error(`[${requestId}] User not found: ${decoded.userId}`);
       return res.status(404).json({ error: "User not found" });
