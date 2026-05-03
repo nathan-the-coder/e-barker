@@ -15,9 +15,6 @@ dotenv.config();
 
 const app = express();
 
-// Connect to MongoDB
-connectDB();
-
 // CORS configuration - restrict in production
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production'
@@ -65,10 +62,14 @@ app.get('/api/health', (req, res) => {
 // Start server locally (not on Vercel)
 if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  
+  // Connect to MongoDB first, then start server
+  connectDB().then(() => {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  }).catch(err => {
+    console.error('Failed to connect to MongoDB:', err);
+    process.exit(1);
   });
 }
-
-// Export for Vercel serverless
-export default app;

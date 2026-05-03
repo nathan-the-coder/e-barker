@@ -1,4 +1,4 @@
-The system design for E-Barker translates the functional needs of a tricycle terminal into a structured technical architecture. Below is the detailed design covering the architectural pattern, data flow, and interface logic.
+The system design for E-Barker translates the functional needs of a PUV van terminal into a structured technical architecture. Below is the detailed design covering the architectural pattern, data flow, and interface logic.
 
 ## 1. Architectural Pattern: MERN Stack (MongoDB, Express, React, Node.js)
 

@@ -15,7 +15,7 @@ A beginner-friendly guide to understanding and modifying the E-Barker Terminal D
 ## Understanding the System
 
 ### What is E-Barker?
-E-Barker is a web application that manages tricycle/jeepney terminal queues. Think of it like a digital line management system at a bus station.
+E-Barker is a web application that manages PUV van terminal queues in Baggao, Cagayan. Think of it like a digital line management system at a bus station.
 
 **Key Concepts:**
 - **Queue**: A line of drivers waiting to get passengers
@@ -330,7 +330,7 @@ router.post('/dispatch/:id', async (req, res) => {
   // Send SMS to driver
   const client = twilio(accountSid, authToken);
   await client.messages.create({
-    body: 'You have been dispatched! Please proceed to your tricycle.',
+    body: 'You have been dispatched! Please proceed to your PUV van.',
     to: driverPhoneNumber,
     from: '+1234567890'
   });
