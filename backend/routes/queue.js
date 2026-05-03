@@ -379,7 +379,7 @@ router.get('/traffic', verifyToken, requireRole(['dispatcher', 'admin']), async 
       `origins=${encodeURIComponent(origin)}&` +
       `destinations=${encodeURIComponent(destination)}&` +
       `departure_time=now&` +
-      `traffic_model=best_guess&` +
+      `traffic_model=bestGuess&` +
       `key=${apiKey}`;
 
     const response = await fetch(url);
