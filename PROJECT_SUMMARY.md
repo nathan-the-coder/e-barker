@@ -23,11 +23,11 @@
 - ✅ Auto re-entry to queue after trip completion
 - ✅ Duplicate prevention (drivers can't join multiple times)
 
-### 3. Tricycle Management
-- ✅ Tricycle registration (body number, plate number, model, year)
-- ✅ Assign tricycles to drivers
+### 3. Vehicle Management
+- ✅ PUV Van registration (body number, plate number, vehicle type, capacity)
+- ✅ Assign vehicles to drivers
 - ✅ Active/inactive status management
-- ✅ Tricycle-driver relationship in queue
+- ✅ Vehicle-driver relationship in queue
 
 ### 4. Financial Monitoring
 - ✅ Real-time fee collection display
@@ -46,7 +46,7 @@
 ### 6. Admin Features (TODA Officer)
 - ✅ Admin panel (`/admin.html`)
 - ✅ Manage drivers (add/edit/deactivate)
-- ✅ Manage tricycles (register/assign/deactivate)
+- ✅ Manage vehicles (register/assign/deactivate)
 - ✅ Financial reports with charts
 - ✅ System settings management
 - ✅ User role management
@@ -77,12 +77,12 @@
 
 ### 10. Technical Implementation
 - ✅ **Backend**: Node.js + Express.js
-- ✅ **Database**: MySQL 8.0 with 5 tables
+- ✅ **Database**: MongoDB with 5 collections
 - ✅ **Authentication**: JWT (jsonwebtoken) + bcrypt
-- ✅ **Frontend**: Vanilla JavaScript + Bootstrap 5.3.8 (CDN)
-- ✅ **Architecture**: MVC pattern (Model-View-Controller)
+- ✅ **Frontend**: React 19 + Vite + Bootstrap 5 (CDN)
+- ✅ **Architecture**: MERN stack (MongoDB, Express, React, Node.js)
 - ✅ **API**: RESTful endpoints with proper HTTP codes
-- ✅ **Security**: Input validation, SQL injection prevention
+- ✅ **Security**: Input validation, JWT authentication, CORS protection
 
 ### 11. Documentation (Complete)
 - ✅ **README.md** - Complete project documentation
@@ -106,7 +106,7 @@ e-barker/
 │   │   ├── queue.js             ✅ FIFO queue management + Traffic API
 │   │   ├── transactions.js      ✅ Fee logging
 │   │   ├── users.js             ✅ User CRUD (admin)
-│   │   ├── tricycles.js         ✅ Vehicle management
+│   │   ├── vehicles.js         ✅ Vehicle management
 │   │   └── settings.js          ✅ System configuration
 │   ├── middleware/
 │   │   └── auth.js              ✅ JWT verification + role checks
@@ -246,12 +246,12 @@ pnpm dev
 - `PUT /api/users/:id` - Update user
 - `DELETE /api/users/:id` - Deactivate user
 
-### Tricycles (Admin Only) (4)
-- `GET /api/tricycles` - List all tricycles
-- `POST /api/tricycles` - Register tricycle
-- `PUT /api/tricycles/:id` - Update tricycle
-- `POST /api/tricycles/:id/assign` - Assign to driver
-- `DELETE /api/tricycles/:id` - Deactivate tricycle
+### Vehicles (Admin Only) (4)
+- `GET /api/vehicles` - List all vehicles
+- `POST /api/vehicles` - Register vehicle
+- `PUT /api/vehicles/:id` - Update vehicle
+- `POST /api/vehicles/:id/assign` - Assign to driver
+- `DELETE /api/vehicles/:id` - Deactivate vehicle
 
 ### Settings (Admin Only) (2)
 - `GET /api/settings` - Get all settings

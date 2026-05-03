@@ -19,7 +19,7 @@ frontend/src/
 │   ├── LoginPage.jsx       # Login/register with Google btn
 │   ├── DriverPage.jsx       # Driver portal (mobile-first)
 │   ├── DispatcherDashboard.jsx  # Live queue dashboard
-│   ├── AdminPage.jsx       # User/tricycle management
+│   ├── AdminPage.jsx       # User/vehicle management
 │   ├── ReportsPage.jsx      # Financial reports with charts
 │   └── MapsPage.jsx        # Google Maps integration
 ├── hooks/
@@ -32,7 +32,7 @@ frontend/src/
 
 ### 3. Backend Updated for Vercel + MongoDB
 - ✅ **MongoDB Atlas** with Mongoose ODM (replaced MySQL)
-- ✅ **Mongoose Models**: User, Queue, Transaction, Tricycle, Setting
+- ✅ **Mongoose Models**: User, Queue, Transaction, Vehicle, Setting
 - ✅ **Vercel serverless** (`export default app`)
 - ✅ **All routes** migrated to async/await with Mongoose
 - ✅ **JWT authentication** with role-based access

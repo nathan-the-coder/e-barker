@@ -332,7 +332,7 @@ db.users.insertMany([...]) // Add test users
 
 5. **Admin Panel** (`/admin`)
    - Show user management
-   - Show tricycle registry
+   - Show PUV van registry
    - Show settings configuration
 
 6. **Complete the Loop**

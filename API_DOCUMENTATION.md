@@ -524,15 +524,15 @@ Deactivate a user (Admin only).
 
 ---
 
-### Tricycles (Admin Only)
+### Vehicles (Admin Only)
 
-#### GET `/tricycles`
-Get all tricycles.
+#### GET `/vehicles`
+Get all vehicles.
 
 **Response:** `200 OK`
 ```json
 {
-  "tricycles": [
+  "vehicles": [
     {
       "id": 1,
       "body_number": "4022",
@@ -549,8 +549,8 @@ Get all tricycles.
 
 ---
 
-#### POST `/tricycles`
-Create a new tricycle (Admin only).
+#### POST `/vehicles`
+Create a new vehicle (Admin only).
 
 **Request Body:**
 ```json
@@ -566,8 +566,8 @@ Create a new tricycle (Admin only).
 
 ---
 
-#### POST `/tricycles/:id/assign`
-Assign tricycle to a driver.
+#### POST `/vehicles/:id/assign`
+Assign vehicle to a driver.
 
 **Request Body:**
 ```json
@@ -579,7 +579,7 @@ Assign tricycle to a driver.
 **Response:** `200 OK`
 ```json
 {
-  "message": "Tricycle assigned successfully"
+  "message": "Vehicle assigned successfully"
 }
 ```
 
