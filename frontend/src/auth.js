@@ -3,7 +3,7 @@ let currentUser = null;
 let authCallbacks = [];
 
 // Check if user is logged in on load
-const token = localStorage.getItem('auth_token');
+const token = sessionStorage.getItem('auth_token');
 if (token) {
   fetch('http://localhost:3000/api/auth/me', {
     headers: { 'Authorization': `Bearer ${token}` }
@@ -14,11 +14,11 @@ if (token) {
         currentUser = data.user;
         authCallbacks.forEach(callback => callback(currentUser));
       } else {
-        localStorage.removeItem('auth_token');
+        sessionStorage.removeItem('auth_token');
       }
     })
     .catch(() => {
-      localStorage.removeItem('auth_token');
+      sessionStorage.removeItem('auth_token');
     });
 }
 
@@ -31,13 +31,13 @@ export const onAuthChange = (callback) => {
 
 export const login = (user, token) => {
   currentUser = user;
-  localStorage.setItem('auth_token', token);
+  sessionStorage.setItem('auth_token', token);
   authCallbacks.forEach(callback => callback(currentUser));
 };
 
 export const logout = () => {
   currentUser = null;
-  localStorage.removeItem('auth_token');
+  sessionStorage.removeItem('auth_token');
   authCallbacks.forEach(callback => callback(null));
 };
 

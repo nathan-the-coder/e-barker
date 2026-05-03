@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-oauth/google": "^0.13.5",
     "bootstrap": "^5.3.8",
     "bootswatch": "^5.3.8",
     "chart.js": "^4.4.0",

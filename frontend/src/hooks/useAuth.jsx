@@ -14,7 +14,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const checkAuth = async () => {
-    const token = localStorage.getItem('auth_token');
+    const token = sessionStorage.getItem('auth_token');
     if (!token) {
       setLoading(false);
       return;
@@ -25,18 +25,18 @@ export function AuthProvider({ children }) {
       if (data.user) {
         setUser(data.user);
       } else {
-        localStorage.removeItem('auth_token');
+        sessionStorage.removeItem('auth_token');
       }
     } catch (error) {
       console.error('Auth check failed:', error);
-      localStorage.removeItem('auth_token');
+      sessionStorage.removeItem('auth_token');
     } finally {
       setLoading(false);
     }
   };
 
   const login = useCallback(async (userData, token) => {
-    localStorage.setItem('auth_token', token);
+    sessionStorage.setItem('auth_token', token);
     setUser(userData);
     
     // Redirect based on role
@@ -50,7 +50,7 @@ export function AuthProvider({ children }) {
   }, [navigate]);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('auth_token');
+    sessionStorage.removeItem('auth_token');
     setUser(null);
     navigate('/login');
   }, [navigate]);

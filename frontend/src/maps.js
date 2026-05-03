@@ -1,11 +1,12 @@
 // Google Maps & Traffic Data Integration for E-Barker
-
 let map;
 let directionsService;
 let directionsRenderer;
 
+const TOMTOM_API_KEY = import.meta.env.VITE_TOMTOM_API_KEY || "";
+
 // Initialize Google Maps
-initMap = function () {
+const initMap = function () {
   const terminalLocation = { lat: 17.9483, lng: 121.7886 }; // Baggao, Cagayan
 
   map = new google.maps.Map(document.getElementById("map"), {
@@ -29,48 +30,64 @@ initMap = function () {
   });
 };
 
-// Get traffic data between two points
+/**
+ * Fetches real-time traffic for Cagayan Valley using Tomtom.
+ */
 async function getTrafficData(origin, destination) {
+  // Internal helper to turn address strings into coordinates
+  const getCoords = async (query) => {
+    // To stay local, add "Philippines" to the query.
+    const geoUrl = `https://api.tomtom.com/search/2/geocode/${encodeURIComponent(query + ", Philippines")}.json?key=${TOMTOM_API_KEY}&limit=1`;
+    const res = await fetch(geoUrl);
+    const data = await res.json();
+    if (!data.results?.length) throw new Error(`Location not found: ${query}`);
+    return `${data.results[0].position.lat},${data.results[0].position.lon}`;
+  };
+
   try {
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/directions/json?` +
-        `origin=${encodeURIComponent(origin)}&` +
-        `destination=${encodeURIComponent(destination)}&` +
-        `departure_time=now&` +
-        `traffic_model=best_guess&` +
-        `key=${GOOGLE_MAPS_API_KEY}`,
-    );
+    // Convert addresses
+    const [start, end] = await Promise.all([getCoords(origin), getCoords(destination)]);
 
-    const data = await response.json();
+    // Calculate Route with Real-Time traffic
+    const routeUrl =
+      `https://api.tomtom.com/routing/1/calculateRoute/${start}:${end}/json?` +
+      new URLSearchParams({
+        key: TOMTOM_API_KEY,
+        traffic: true,
+        routeType: "fastest",
+      });
 
-    if (data.status === "OK" && data.routes.length > 0) {
-      const route = data.routes[0];
-      const leg = route.legs[0];
+    const response = await fetch(routeUrl);
+    if (!response.ok) throw new Error("Tomtom Routing API Error");
 
-      return {
-        origin: leg.start_address,
-        destination: leg.end_address,
-        distance: leg.distance.text,
-        duration: leg.duration.text,
-        duration_in_traffic: leg.duration_in_traffic?.text || leg.duration.text,
-        congestion_level: getCongestionLevel(leg.duration.value, leg.duration_in_traffic?.value),
-      };
-    }
+    const { routes } = await response.json();
+    const { summary } = routes[0];
 
-    return null;
+    // Format the data to match original structure.
+    const travelTimeMins = Math.round(summary.travelTimeInSeconds / 60);
+    const delayMins = Math.round(summary.trafficDelaysInSeconds / 60);
+
+    return {
+      origin: origin,
+      destination: destination,
+      distance: `${(summary.lengthInMeters / 1000).toFixed(1)} km`,
+      duration: `${Math.round(summary.noTrafficTravelTimeInSeconds / 60)} mins`,
+      duration_in_traffic: `${travelTimeMins} mins`,
+      traffic_delay: `${delayMins} mins`,
+      // Custom congestion logic for provincial roads.
+      congestion_level: determineCongestion(summary.trafficDelaysInSeconds),
+    };
   } catch (error) {
-    console.error("Traffic API error:", error);
+    console.error("Traffic Data Error: ", error.message);
     return null;
   }
 }
 
-// Determine congestion level
-function getCongestionLevel(normalDuration, trafficDuration) {
-  if (!trafficDuration) return "unknown";
-  const ratio = trafficDuration / normalDuration;
-  if (ratio <= 1.1) return "light";
-  if (ratio <= 1.3) return "moderate";
-  return "heavy";
+// Modern helper for congestion status
+function determineCongestion(delaySeconds) {
+  if (delaySeconds < 60) return "Fluid";
+  if (delaySeconds < 300) return "Moderate"; // 1-5 mins delay
+  return "Heavy";
 }
 
 // Display route on map

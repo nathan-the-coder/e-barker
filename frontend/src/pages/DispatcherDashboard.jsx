@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { queueAPI, transactionAPI, fareAPI } from "../utils/api";
+import { getTrafficData } from "../maps.js";
 
 function DispatcherDashboard() {
   const { user, logout } = useAuth();
@@ -18,7 +19,7 @@ function DispatcherDashboard() {
   const [traffic, setTraffic] = useState(null);
   const [trafficLoading, setTrafficLoading] = useState(false);
 
-  const TERMINAL = "Baggao Terminal, Baggao, Cagayan";
+  const TERMINAL = "San Jose, Baggao, Cagayan";
   const MAIN_DEST = "Tuguegarao City, Cagayan";
 
   const loadData = async () => {
@@ -44,8 +45,8 @@ function DispatcherDashboard() {
   const loadTraffic = async () => {
     setTrafficLoading(true);
     try {
-      const res = await queueAPI.getTraffic(TERMINAL, MAIN_DEST);
-      setTraffic(res.traffic);
+      const res = await getTrafficData(TERMINAL, MAIN_DEST);
+      setTraffic(res);
     } catch (err) {
       console.error("Traffic error:", err);
     } finally {
@@ -54,7 +55,10 @@ function DispatcherDashboard() {
   };
 
   useEffect(() => {
-    if (!user) { navigate("/login"); return; }
+    if (!user) {
+      navigate("/login");
+      return;
+    }
     if (user.role !== "dispatcher" && user.role !== "admin") {
       navigate(user.role === "driver" ? "/driver" : "/admin");
       return;
@@ -63,7 +67,10 @@ function DispatcherDashboard() {
     loadTraffic();
     const iv = setInterval(loadData, 10000);
     const tv = setInterval(loadTraffic, 120000); // refresh traffic every 2 min
-    return () => { clearInterval(iv); clearInterval(tv); };
+    return () => {
+      clearInterval(iv);
+      clearInterval(tv);
+    };
   }, [user]);
 
   const congestionColor = (level) =>
@@ -95,7 +102,11 @@ function DispatcherDashboard() {
       });
       if (destination) {
         try {
-          Swal.fire({ title: "Fetching route…", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+          Swal.fire({
+            title: "Fetching route…",
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading(),
+          });
           routeData = await fareAPI.getRoute(origin || TERMINAL, destination);
           Swal.close();
           const r = routeData.route;
@@ -136,13 +147,24 @@ function DispatcherDashboard() {
     }
 
     try {
-      await queueAPI.dispatch(id, routeData ? {
-        estimatedMinutes: routeData.route?.durationMinutes,
-        origin: routeData.route?.origin,
-        destination: routeData.route?.destination,
-        distanceKm: routeData.route?.distanceKm,
-      } : {});
-      Swal.fire({ title: "Dispatched!", text: "Driver is now on-trip.", icon: "success", timer: 1500, showConfirmButton: false });
+      await queueAPI.dispatch(
+        id,
+        routeData
+          ? {
+              estimatedMinutes: routeData.route?.durationMinutes,
+              origin: routeData.route?.origin,
+              destination: routeData.route?.destination,
+              distanceKm: routeData.route?.distanceKm,
+            }
+          : {},
+      );
+      Swal.fire({
+        title: "Dispatched!",
+        text: "Driver is now on-trip.",
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
       loadData();
     } catch (err) {
       Swal.fire({ title: "Error", text: err.message || "Failed to dispatch", icon: "error" });
@@ -160,14 +182,23 @@ function DispatcherDashboard() {
       const { value: driverId } = await Swal.fire({
         title: "Select Driver",
         input: "select",
-        inputOptions: drivers.reduce((acc, d) => { acc[d._id] = `${d.name} (${d.username})`; return acc; }, {}),
+        inputOptions: drivers.reduce((acc, d) => {
+          acc[d._id] = `${d.name} (${d.username})`;
+          return acc;
+        }, {}),
         inputPlaceholder: "Select a driver",
         showCancelButton: true,
         confirmButtonText: "Register Trip",
       });
       if (!driverId) return;
       await queueAPI.registerTrip(driverId);
-      Swal.fire({ title: "Trip Registered!", text: "Driver dispatched (skipped queue).", icon: "success", timer: 1500, showConfirmButton: false });
+      Swal.fire({
+        title: "Trip Registered!",
+        text: "Driver dispatched (skipped queue).",
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
       loadData();
     } catch (err) {
       Swal.fire({ title: "Error", text: err.message || "Failed to register trip", icon: "error" });
@@ -185,20 +216,36 @@ function DispatcherDashboard() {
   return (
     <div style={{ minHeight: "100vh", background: "#f4f6fb" }}>
       {/* Navbar */}
-      <nav className="navbar navbar-dark" style={{ background: "linear-gradient(135deg,#1a237e,#283593)" }}>
+      <nav
+        className="navbar navbar-dark"
+        style={{ background: "linear-gradient(135deg,#1a237e,#283593)" }}
+      >
         <div className="container">
           <span className="navbar-brand fw-bold">🚐 E-Barker Dispatch</span>
           <span className="text-white opacity-75 small">Dispatcher: {user.name || user.email}</span>
           <div className="d-flex gap-2">
-            <button type="button" onClick={() => navigate("/maps")} className="btn btn-sm btn-outline-light">🗺 Maps</button>
-            <button type="button" onClick={() => navigate("/reports")} className="btn btn-sm btn-outline-light">📊 Reports</button>
-            <button type="button" onClick={logout} className="btn btn-sm btn-danger">Logout</button>
+            <button
+              type="button"
+              onClick={() => navigate("/maps")}
+              className="btn btn-sm btn-outline-light"
+            >
+              🗺 Maps
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/reports")}
+              className="btn btn-sm btn-outline-light"
+            >
+              📊 Reports
+            </button>
+            <button type="button" onClick={logout} className="btn btn-sm btn-danger">
+              Logout
+            </button>
           </div>
         </div>
       </nav>
 
       <div className="container py-4">
-
         {/* Stats row */}
         <div className="row g-3 mb-4">
           <div className="col-6 col-md-3">
@@ -225,7 +272,9 @@ function DispatcherDashboard() {
           <div className="col-6 col-md-3">
             <div className="card border-0 shadow-sm text-center py-3" style={{ borderRadius: 14 }}>
               <div style={{ fontSize: 28 }}>🏷</div>
-              <h4 className="fw-bold mb-0 text-secondary">₱{fareMatrix?.terminal_fee?.toFixed(2) || "10.00"}</h4>
+              <h4 className="fw-bold mb-0 text-secondary">
+                ₱{fareMatrix?.terminal_fee?.toFixed(2) || "10.00"}
+              </h4>
               <small className="text-muted">Terminal Fee</small>
             </div>
           </div>
@@ -234,29 +283,39 @@ function DispatcherDashboard() {
         <div className="row g-4">
           {/* Left column */}
           <div className="col-md-4">
-
             {/* Traffic widget */}
             <div className="card border-0 shadow-sm mb-3" style={{ borderRadius: 14 }}>
               <div className="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
                 <h6 className="mb-0 fw-bold">🚦 Traffic Conditions</h6>
-                <button onClick={loadTraffic} disabled={trafficLoading}
-                  className="btn btn-sm btn-outline-secondary" style={{ borderRadius: 50 }}>
+                <button
+                  onClick={loadTraffic}
+                  disabled={trafficLoading}
+                  className="btn btn-sm btn-outline-secondary"
+                  style={{ borderRadius: 50 }}
+                >
                   {trafficLoading ? "…" : "↻"}
                 </button>
               </div>
               <div className="card-body pt-0">
                 {traffic ? (
-                  <div className="p-2 rounded" style={{ background: congestionBg(traffic.congestion_level) }}>
+                  <div
+                    className="p-2 rounded"
+                    style={{ background: congestionBg(traffic.congestion_level) }}
+                  >
                     <strong style={{ color: congestionColor(traffic.congestion_level) }}>
                       {traffic.congestion_level?.toUpperCase()} TRAFFIC
                     </strong>
                     <p className="mb-1 mt-1 small">
                       📏 {traffic.distance} &nbsp;|&nbsp; ⏱ {traffic.duration_in_traffic}
                     </p>
-                    <small className="text-muted">{traffic.origin} → {traffic.destination}</small>
+                    <small className="text-muted">
+                      {traffic.origin} → {traffic.destination}
+                    </small>
                   </div>
                 ) : (
-                  <p className="text-muted small mb-0">{trafficLoading ? "Loading…" : "Click ↻ to refresh"}</p>
+                  <p className="text-muted small mb-0">
+                    {trafficLoading ? "Loading…" : "Click ↻ to refresh"}
+                  </p>
                 )}
               </div>
             </div>
@@ -265,16 +324,25 @@ function DispatcherDashboard() {
             <div className="card border-0 shadow-sm mb-3" style={{ borderRadius: 14 }}>
               <div className="card-body">
                 <h6 className="fw-bold mb-3">⚡ Actions</h6>
-                <button type="button" onClick={handleRegisterTrip}
-                  className="btn btn-success w-100 mb-2 fw-semibold">
+                <button
+                  type="button"
+                  onClick={handleRegisterTrip}
+                  className="btn btn-success w-100 mb-2 fw-semibold"
+                >
                   ＋ Register New Trip
                 </button>
-                <button type="button" onClick={() => navigate("/maps")}
-                  className="btn btn-outline-primary w-100 mb-2">
+                <button
+                  type="button"
+                  onClick={() => navigate("/maps")}
+                  className="btn btn-outline-primary w-100 mb-2"
+                >
                   🗺 Open Maps & Routes
                 </button>
-                <button type="button" onClick={() => navigate("/reports")}
-                  className="btn btn-outline-secondary w-100">
+                <button
+                  type="button"
+                  onClick={() => navigate("/reports")}
+                  className="btn btn-outline-secondary w-100"
+                >
                   📊 View Reports
                 </button>
               </div>
@@ -296,10 +364,17 @@ function DispatcherDashboard() {
                           <div>
                             <strong className="small">{entry.driverId?.name || "Driver"}</strong>
                             <br />
-                            <small className="text-muted">Body #{entry.vehicleId?.bodyNumber || "N/A"}</small>
+                            <small className="text-muted">
+                              Body #{entry.vehicleId?.bodyNumber || "N/A"}
+                            </small>
                           </div>
                           <small className="text-muted">
-                            {entry.dispatchTime ? new Date(entry.dispatchTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "N/A"}
+                            {entry.dispatchTime
+                              ? new Date(entry.dispatchTime).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "N/A"}
                           </small>
                         </div>
                       </div>
@@ -318,20 +393,33 @@ function DispatcherDashboard() {
             </div>
 
             {activeQueue.length === 0 ? (
-              <div className="card border-0 shadow-sm text-center py-5" style={{ borderRadius: 14 }}>
+              <div
+                className="card border-0 shadow-sm text-center py-5"
+                style={{ borderRadius: 14 }}
+              >
                 <p className="text-muted mb-0">No drivers in queue</p>
               </div>
             ) : (
               <>
                 {/* Next in line — big card */}
                 {activeQueue[0] && (
-                  <div className="card border-0 shadow mb-3"
-                    style={{ borderRadius: 14, background: "linear-gradient(135deg,#1a237e,#283593)", color: "#fff" }}>
+                  <div
+                    className="card border-0 shadow mb-3"
+                    style={{
+                      borderRadius: 14,
+                      background: "linear-gradient(135deg,#1a237e,#283593)",
+                      color: "#fff",
+                    }}
+                  >
                     <div className="card-body d-flex justify-content-between align-items-center p-4">
                       <div>
                         <span className="badge bg-success mb-2">NEXT IN LINE</span>
-                         <h4 className="mb-0 fw-bold">Body #{activeQueue[0].vehicleId?.bodyNumber || "N/A"}</h4>
-                        <p className="mb-0 opacity-75">Driver: {activeQueue[0].driverId?.name || "Unknown"}</p>
+                        <h4 className="mb-0 fw-bold">
+                          Body #{activeQueue[0].vehicleId?.bodyNumber || "N/A"}
+                        </h4>
+                        <p className="mb-0 opacity-75">
+                          Driver: {activeQueue[0].driverId?.name || "Unknown"}
+                        </p>
                         <small className="opacity-50">
                           Checked in: {new Date(activeQueue[0].checkInTime).toLocaleTimeString()}
                         </small>
@@ -340,11 +428,13 @@ function DispatcherDashboard() {
                         type="button"
                         className="btn btn-light btn-lg fw-bold"
                         style={{ borderRadius: 12, color: "#1a237e", minWidth: 120 }}
-                        onClick={() => handleDispatch(
-                          activeQueue[0]._id,
-                          activeQueue[0].driverId?.name || "Driver",
-                           activeQueue[0].vehicleId?.bodyNumber || "N/A"
-                        )}
+                        onClick={() =>
+                          handleDispatch(
+                            activeQueue[0]._id,
+                            activeQueue[0].driverId?.name || "Driver",
+                            activeQueue[0].vehicleId?.bodyNumber || "N/A",
+                          )
+                        }
                       >
                         🚀 DISPATCH
                       </button>
@@ -354,14 +444,22 @@ function DispatcherDashboard() {
 
                 {/* Rest of the queue */}
                 {activeQueue.slice(1).map((entry, i) => {
-                  const waited = Math.floor((Date.now() - new Date(entry.checkInTime).getTime()) / 60000);
+                  const waited = Math.floor(
+                    (Date.now() - new Date(entry.checkInTime).getTime()) / 60000,
+                  );
                   return (
-                    <div key={entry._id || i} className="card border-0 shadow-sm mb-2" style={{ borderRadius: 12 }}>
+                    <div
+                      key={entry._id || i}
+                      className="card border-0 shadow-sm mb-2"
+                      style={{ borderRadius: 12 }}
+                    >
                       <div className="card-body d-flex justify-content-between align-items-center py-2 px-3">
                         <div>
                           <span className="badge bg-secondary me-2">#{i + 2}</span>
-                           <strong>Body #{entry.vehicleId?.bodyNumber || "N/A"}</strong>
-                          <small className="text-muted ms-2">{entry.driverId?.name || "Unknown"}</small>
+                          <strong>Body #{entry.vehicleId?.bodyNumber || "N/A"}</strong>
+                          <small className="text-muted ms-2">
+                            {entry.driverId?.name || "Unknown"}
+                          </small>
                         </div>
                         <small className="text-muted">Waited {waited}m</small>
                       </div>
