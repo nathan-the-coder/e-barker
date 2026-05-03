@@ -106,7 +106,7 @@ export const userAPI = {
   getDrivers: () => apiRequest('/users/drivers/list')
 };
 
-// Tricycles API
+// Vehicles API
 export const vehicleAPI = {
   getAll: () => apiRequest('/vehicles'),
   getAvailable: () => apiRequest('/vehicles/available'),
