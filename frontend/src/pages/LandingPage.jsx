@@ -31,7 +31,7 @@ function LandingPage() {
       <section className="hero bg-primary text-white py-5">
         <div className="container text-center">
           <h1 className="display-4 fw-bold">E-Barker</h1>
-          <p className="lead">Modern Dispatcher Terminal Management System</p>
+          <p className="lead">PUV Van Dispatch System for Baggao, Cagayan</p>
           <Link to="/login" className="btn btn-light btn-lg mt-3">Get Started</Link>
         </div>
       </section>
@@ -41,7 +41,7 @@ function LandingPage() {
           <h2 className="text-center mb-5">Features</h2>
           <div className="row g-4">
             {[
-              { title: 'Queue Management', desc: 'Efficiently manage jeepney and bus queues with real-time updates.' },
+              { title: 'Queue Management', desc: 'Efficiently manage PUV Van queues in Baggao, Cagayan with real-time updates.' },
               { title: 'Fee Collection', desc: 'Track and monitor fee collection statistics effortlessly.' },
               { title: 'Trip Registration', desc: 'Register and manage trips with comprehensive trip data.' }
             ].map((feature, idx) => (
@@ -62,8 +62,8 @@ function LandingPage() {
         <div className="container">
           <h2 className="text-center mb-4">About E-Barker</h2>
           <p className="text-center col-md-8 mx-auto">
-            E-Barker is a comprehensive terminal management system designed for modern transport terminals. 
-            Streamline operations, improve efficiency, and enhance passenger experience.
+             E-Barker is a comprehensive terminal management system designed for PUV Vans operating in Baggao, Cagayan.
+            Streamline operations, improve efficiency, and enhance passenger experience for trips to Tuguegarao City and other Cagayan destinations.
           </p>
         </div>
       </section>
