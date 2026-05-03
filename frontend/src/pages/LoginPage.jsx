@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { authAPI } from '../utils/api';
+import Swal from 'sweetalert2';
 
 function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -12,7 +13,6 @@ function LoginPage() {
     name: '',
     role: 'driver'
   });
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleData, setGoogleData] = useState(null);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
@@ -20,7 +20,6 @@ function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
 
     try {
@@ -31,7 +30,9 @@ function LoginPage() {
       // The login function in useAuth will handle redirection
       login(data.user, data.token);
     } catch (err) {
-      setError(err.message || 'An error occurred');
+      const title = isLogin ? 'Login Failed' : 'Registration Failed';
+      const text = err.message || (isLogin ? 'Invalid email or password' : 'Registration failed. Please try again.');
+      Swal.fire({ title, text, icon: 'error' });
     } finally {
       setLoading(false);
     }
@@ -76,7 +77,11 @@ function LoginPage() {
 
       login(data.user, data.token);
     } catch (error) {
-      setError(error.message || 'Google login failed');
+      Swal.fire({
+        title: 'Google Login Failed',
+        text: error.message || 'Google login failed',
+        icon: 'error'
+      });
     }
   };
 
@@ -91,7 +96,11 @@ function LoginPage() {
       setGoogleData(null);
       login(data.user, data.token);
     } catch (error) {
-      setError(error.message || 'Google registration failed');
+      Swal.fire({
+        title: 'Registration Failed',
+        text: error.message || 'Google registration failed',
+        icon: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -115,10 +124,6 @@ function LoginPage() {
                   <p className="text-center text-muted mb-4">
                     Welcome {googleData?.name || googleData?.email}! Please select your role to continue.
                   </p>
-
-                  {error && (
-                    <div className="alert alert-danger">{error}</div>
-                  )}
 
                   <div className="d-grid gap-3">
                     <button
@@ -180,10 +185,6 @@ function LoginPage() {
                     {isLogin ? 'Login to E-Barker' : 'Register'}
                   </h3>
                 </div>
-
-                {error && (
-                  <div className="alert alert-danger">{error}</div>
-                )}
 
                 <form onSubmit={handleSubmit}>
                   {!isLogin && (
