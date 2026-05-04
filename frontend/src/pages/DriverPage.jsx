@@ -1,4 +1,3 @@
-/** biome-ignore-all lint/correctness/useExhaustiveDependencies: <explanation> */
 import Swal from "sweetalert2";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -14,6 +13,7 @@ function DriverPage() {
   const [tripElapsed, setTripElapsed] = useState(0);
   const [fareMatrix, setFareMatrix] = useState(null);
   const timerRef = useRef(null);
+  const locationTimerRef = useRef(null);
 
   const getDriverId = () => user?.id || user?._id;
 
@@ -36,7 +36,6 @@ function DriverPage() {
     }
   };
 
-  // Live trip timer
   useEffect(() => {
     if (queueStatus?.status === "On-trip" && queueStatus?.dispatchTime) {
       timerRef.current = setInterval(() => {
@@ -50,6 +49,16 @@ function DriverPage() {
     }
     return () => clearInterval(timerRef.current);
   }, [queueStatus?.status, queueStatus?.dispatchTime]);
+
+  useEffect(() => {
+    if (queueStatus?.status === "Confirmed") {
+      handleGetLocation();
+      locationTimerRef.current = setInterval(handleGetLocation, 30000);
+    } else {
+      clearInterval(locationTimerRef.current);
+    }
+    return () => clearInterval(locationTimerRef.current);
+  }, [queueStatus?.status]);
 
   useEffect(() => {
     if (!user) { navigate("/login"); return; }
@@ -75,8 +84,50 @@ function DriverPage() {
     }
   };
 
-  const handleCompleteTrip = async () => {
+  const handleConfirmTrip = async () => {
     if (!queueStatus || queueStatus.status !== "On-trip") return;
+    const { isConfirmed } = await Swal.fire({
+      title: "Confirm Trip?",
+      text: "Acknowledge that you have received the dispatch and are starting the trip.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Confirm",
+    });
+    if (!isConfirmed) return;
+    try {
+      await queueAPI.confirm(queueStatus._id || queueStatus.id);
+      Swal.fire({ title: "Trip Confirmed!", text: "Tracking enabled.", icon: "success" });
+      loadData();
+    } catch (err) {
+      Swal.fire({ title: "Error", text: err.message || "Failed to confirm", icon: "error" });
+    }
+  };
+
+  const sendLocation = async (lat, lng) => {
+    if (!queueStatus || (!queueStatus._id && !queueStatus.id)) return;
+    try {
+      await queueAPI.updateLocation(queueStatus._id || queueStatus.id, lat, lng);
+    } catch (err) {
+      console.error("Location update failed:", err);
+    }
+  };
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        sendLocation(latitude, longitude);
+      },
+      (err) => {
+        console.error("Geolocation error:", err);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  };
+
+  const handleCompleteTrip = async () => {
+    if (!queueStatus || (queueStatus.status !== "On-trip" && queueStatus.status !== "Confirmed")) return;
     const { isConfirmed } = await Swal.fire({
       title: "Complete Trip?",
       text: "Confirm that you have returned to the terminal.",
@@ -104,8 +155,11 @@ function DriverPage() {
 
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center min-vh-100">
-        <div className="spinner-border text-primary" role="status" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-indigo-900 text-xl">
+          <i className="fa-solid fa-spinner fa-spin text-3xl mb-2"></i>
+          <p>Loading...</p>
+        </div>
       </div>
     );
   }
@@ -118,124 +172,161 @@ function DriverPage() {
     : null;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f4f6fb" }}>
-      <nav className="navbar navbar-dark" style={{ background: "linear-gradient(135deg,#1a237e,#283593)" }}>
-        <div className="container">
-          <span className="navbar-brand fw-bold">🚐 E-Barker</span>
-          <span className="text-white opacity-75 small">Driver: {user.name || user.email}</span>
-          <button type="button" onClick={logout} className="btn btn-sm btn-outline-light">Logout</button>
+    <div className="min-h-screen bg-gray-100">
+      <nav className="bg-gradient-to-r from-indigo-900 to-indigo-800 text-white shadow-lg">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex justify-between items-center">
+            <span className="text-xl font-bold flex items-center gap-2">
+              <i className="fa-solid fa-bus text-orange-400"></i>
+              E-Barker
+            </span>
+            <span className="text-white/75 text-sm hidden sm:block">Driver: {user.name || user.email}</span>
+            <button type="button" onClick={logout} className="px-3 py-1.5 text-sm border border-white/30 rounded-lg hover:bg-white/10 transition">
+              <i className="fa-solid fa-sign-out-alt mr-1"></i> Logout
+            </button>
+          </div>
         </div>
       </nav>
 
-      <div className="container py-4">
-        <div className="row g-4 justify-content-center">
-
-          {/* Status card */}
-          <div className="col-12 col-lg-5">
+      <div className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 justify-center">
+          <div className="lg:col-span-2">
             {!queueStatus ? (
-              <div className="card border-0 shadow-sm text-center py-5" style={{ borderRadius: 18 }}>
-                <div className="card-body">
-                  <div style={{ fontSize: 56 }}>🛺</div>
-                  <h4 className="mt-3 fw-bold text-muted">Not in Queue</h4>
-                  <p className="text-muted mb-1">Join to start accepting trips.</p>
-                  {estFare && <p className="small text-muted mb-4"><strong>Fare Rate:</strong> {estFare}</p>}
-                  <button type="button" onClick={handleJoinQueue}
-                    className="btn btn-success btn-lg px-5 fw-semibold" style={{ borderRadius: 50 }}>
-                    ✅ Join Queue
-                  </button>
-                </div>
+              <div className="bg-white rounded-xl shadow-md text-center py-8 px-6">
+                <i className="fa-solid fa-taxi text-5xl text-gray-300 mb-4"></i>
+                <h4 className="mt-3 font-bold text-gray-600 text-xl">Not in Queue</h4>
+                <p className="text-gray-500 mb-1">Join to start accepting trips.</p>
+                {estFare && <p className="text-sm text-gray-500 mb-4"><strong>Fare Rate:</strong> {estFare}</p>}
+                <button type="button" onClick={handleJoinQueue}
+                  className="bg-green-600 hover:bg-green-700 text-white text-lg px-8 py-3 rounded-full font-semibold transition">
+                  <i className="fa-solid fa-check mr-2"></i> Join Queue
+                </button>
               </div>
             ) : queueStatus.status === "Waiting" ? (
-              <div className="card border-0 shadow-sm" style={{ borderRadius: 18 }}>
-                <div className="card-body text-center py-4">
-                  <span className="badge bg-warning text-dark fs-6 mb-3">⏳ Waiting</span>
-                  <h2 className="fw-bold display-4 text-primary">#{position || "—"}</h2>
-                  <p className="text-muted">Your position in queue</p>
-                  <hr />
-                  <div className="row g-2 mt-1">
-                    <div className="col">
-                      <small className="text-muted d-block">Checked In</small>
+              <div className="bg-white rounded-xl shadow-md">
+                <div className="text-center py-6 px-6">
+                  <span className="bg-yellow-500 text-white px-3 py-1 rounded-full text-sm font-medium mb-3 inline-block">
+                    <i className="fa-solid fa-hourglass-half mr-1"></i> Waiting
+                  </span>
+                  <h2 className="font-bold text-5xl text-indigo-900">#{position || "—"}</h2>
+                  <p className="text-gray-500">Your position in queue</p>
+                  <hr className="my-4" />
+                  <div className="grid grid-cols-2 gap-4 mt-2">
+                    <div>
+                      <small className="text-gray-500 block">Checked In</small>
                       <strong>{new Date(queueStatus.checkInTime).toLocaleTimeString()}</strong>
                     </div>
-                     <div className="col">
-                       <small className="text-muted d-block">Vehicle</small>
-                       <strong>{queueStatus.vehicleId?.bodyNumber || "—"}</strong>
-                     </div>
+                     <div>
+                      <small className="text-gray-500 block">Vehicle</small>
+                      <strong>{queueStatus.vehicleId?.bodyNumber || "—"}</strong>
+                    </div>
                   </div>
                   {estFare && (
-                    <div className="alert alert-info mt-3 mb-0 small text-start">
+                    <div className="bg-blue-50 mt-4 p-3 rounded-lg text-left text-sm">
                       <strong>Fare Rate:</strong> {estFare}
                     </div>
                   )}
                 </div>
               </div>
-            ) : (
-              <div className="card border-0 shadow text-white" style={{ borderRadius: 18, background: "linear-gradient(135deg,#1b5e20,#2e7d32)" }}>
-                <div className="card-body text-center py-4">
-                  <div style={{ fontSize: 48 }}>🚗</div>
-                  <h4 className="fw-bold mt-2 mb-0">On Trip!</h4>
-                  <p className="opacity-75 small mb-3">Currently on a trip</p>
-                  <div className="mb-3 p-3 rounded" style={{ background: "rgba(255,255,255,0.15)" }}>
-                    <small className="opacity-75 d-block">Trip Duration</small>
+            ) : queueStatus.status === "On-trip" ? (
+              <div className="bg-gradient-to-br from-orange-500 to-orange-400 text-white rounded-xl shadow-lg">
+                <div className="text-center py-6 px-6">
+                  <i className="fa-solid fa-satellite-dish text-4xl mb-2"></i>
+                  <h4 className="font-bold text-2xl mb-0">Dispatch Received!</h4>
+                  <p className="opacity-75 text-sm mb-3">Confirm to start trip</p>
+                  <div className="mb-3 p-4 rounded-lg bg-white/15">
+                    <small className="opacity-75 block">Dispatched At</small>
+                    <strong style={{ fontSize: 24 }}>
+                      {queueStatus.dispatchTime ? new Date(queueStatus.dispatchTime).toLocaleTimeString() : "—"}
+                    </strong>
+                  </div>
+                  <div className="grid grid-cols-1 mb-4">
+                    <div>
+                      <small className="opacity-75 block">Est. ETA</small>
+                      <strong>{queueStatus.estimatedArrivalTime ? `${queueStatus.estimatedArrivalTime} min` : "—"}</strong>
+                    </div>
+                  </div>
+                  <button type="button" onClick={handleConfirmTrip}
+                    className="bg-white text-orange-500 hover:bg-gray-100 font-bold py-3 px-8 rounded-full transition">
+                    <i className="fa-solid fa-check mr-2"></i> Confirm Trip
+                  </button>
+                  <p className="opacity-75 text-sm mt-3 mb-0">Tap Confirm to acknowledge dispatch.</p>
+                </div>
+              </div>
+            ) : queueStatus.status === "Confirmed" ? (
+              <div className="bg-gradient-to-br from-green-700 to-green-600 text-white rounded-xl shadow-lg">
+                <div className="text-center py-6 px-6">
+                  <i className="fa-solid fa-car text-4xl mb-2"></i>
+                  <h4 className="font-bold text-2xl mb-0">On Trip!</h4>
+                  <p className="opacity-75 text-sm mb-3">Currently on a trip</p>
+                  <div className="mb-3 p-4 rounded-lg bg-white/15">
+                    <small className="opacity-75 block">Trip Duration</small>
                     <span style={{ fontSize: 36, fontFamily: "monospace", fontWeight: 700 }}>
                       {formatElapsed(tripElapsed)}
                     </span>
                   </div>
-                  <div className="row g-2 mb-4">
-                    <div className="col">
-                      <small className="opacity-75 d-block">Dispatched</small>
+                  <div className="grid grid-cols-2 mb-4">
+                    <div>
+                      <small className="opacity-75 block">Dispatched</small>
                       <strong>{queueStatus.dispatchTime ? new Date(queueStatus.dispatchTime).toLocaleTimeString() : "—"}</strong>
                     </div>
-                    <div className="col">
-                      <small className="opacity-75 d-block">Est. ETA</small>
+                    <div>
+                      <small className="opacity-75 block">Est. ETA</small>
                       <strong>{queueStatus.estimatedArrivalTime ? `${queueStatus.estimatedArrivalTime} min` : "—"}</strong>
                     </div>
                   </div>
                   <button type="button" onClick={handleCompleteTrip}
-                    className="btn btn-light btn-lg fw-bold px-5" style={{ borderRadius: 50, color: "#1b5e20" }}>
-                    ✅ Complete Trip
+                    className="bg-white text-green-700 hover:bg-gray-100 font-bold py-3 px-8 rounded-full transition">
+                    <i className="fa-solid fa-check mr-2"></i> Complete Trip
                   </button>
-                  <p className="opacity-75 small mt-3 mb-0">Return to terminal first, then tap Complete.</p>
+                  <p className="opacity-75 text-sm mt-3 mb-0">Return to terminal first, then tap Complete.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow-md text-center py-8">
+                <div className="card-body">
+                  <p className="text-gray-500">Unknown status</p>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Queue list */}
-          <div className="col-12 col-lg-7">
-            <div className="card border-0 shadow-sm" style={{ borderRadius: 18 }}>
-              <div className="card-header bg-white border-0 py-3 px-4" style={{ borderRadius: "18px 18px 0 0" }}>
-                <h5 className="mb-0 fw-bold">📋 Current Queue</h5>
-                <small className="text-muted">{activeQueue.length} driver{activeQueue.length !== 1 ? "s" : ""} waiting</small>
+          <div className="lg:col-span-3">
+            <div className="bg-white rounded-xl shadow-md">
+              <div className="px-5 py-4 border-b">
+                <h5 className="font-bold flex items-center gap-2">
+                  <i className="fa-solid fa-clipboard-list text-indigo-900"></i> Current Queue
+                </h5>
+                <small className="text-gray-500">{activeQueue.length} driver{activeQueue.length !== 1 ? "s" : ""} waiting</small>
               </div>
-              <div className="card-body p-0">
+              <div className="max-h-96 overflow-y-auto">
                 {activeQueue.length === 0 ? (
-                  <p className="text-center text-muted py-4">No drivers in queue</p>
+                  <p className="text-center text-gray-500 py-6">No drivers in queue</p>
                 ) : (
-                  <div className="list-group list-group-flush">
+                  <div className="divide-y">
                     {activeQueue.map((entry, index) => {
                       const isMe = (entry.driverId?._id || entry.driverId) === getDriverId();
                       const waited = Math.floor((Date.now() - new Date(entry.checkInTime).getTime()) / 60000);
                       return (
-                        <div key={entry._id || index} className="list-group-item px-4 py-3"
+                        <div key={entry._id || index} className="px-5 py-4"
                           style={{
                             background: index === 0 ? "#e8f5e9" : isMe ? "#fff3e0" : "white",
                             borderLeft: `4px solid ${index === 0 ? "#4caf50" : isMe ? "#ff9800" : "transparent"}`
                           }}>
-                          <div className="d-flex justify-content-between align-items-center">
+                          <div className="flex justify-between items-center">
                             <div>
-                              <span className="badge me-2" style={{ background: index === 0 ? "#4caf50" : "#90a4ae", color: "#fff" }}>
+                              <span className="inline-block px-2 py-0.5 rounded text-xs font-medium mr-2" style={{ background: index === 0 ? "#4caf50" : "#90a4ae", color: "#fff" }}>
                                 #{index + 1}
                               </span>
                               <strong>{entry.driverId?.name || `Driver #${index + 1}`}</strong>
-                              {isMe && <span className="badge bg-warning text-dark ms-2">You</span>}
-                              {index === 0 && <span className="badge bg-success ms-2">Next</span>}
+                              {isMe && <span className="bg-yellow-500 text-white px-2 py-0.5 rounded text-xs ml-2">You</span>}
+                              {index === 0 && <span className="bg-green-500 text-white px-2 py-0.5 rounded text-xs ml-2">Next</span>}
                               <br />
-                              <small className="text-muted ms-4">
+                              <small className="text-gray-500 ml-4">
                                  Body #{entry.vehicleId?.bodyNumber || "—"} · waited {waited}m
                               </small>
                             </div>
-                            <small className="text-muted">
+                            <small className="text-gray-500">
                               {new Date(entry.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                             </small>
                           </div>
@@ -247,7 +338,6 @@ function DriverPage() {
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>

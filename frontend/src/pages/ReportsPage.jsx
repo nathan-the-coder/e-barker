@@ -102,129 +102,126 @@ function ReportsPage() {
   const avgFee = transactions.length ? (total / transactions.length) : 0;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f6fb' }}>
-      <nav className="navbar navbar-dark" style={{ background: 'linear-gradient(135deg,#1a237e,#283593)' }}>
-        <div className="container">
-          <span className="navbar-brand fw-bold">🛺 E-Barker</span>
-          <span className="text-white opacity-75 small">{user.role}: {user.name || user.email}</span>
-          <div className="d-flex gap-2">
-            <button onClick={() => navigate('/dashboard')} className="btn btn-sm btn-outline-light">← Dashboard</button>
-            <button onClick={logout} className="btn btn-sm btn-danger">Logout</button>
+    <div className="min-h-screen bg-gray-100">
+      <nav className="bg-gradient-to-r from-indigo-900 to-indigo-800 text-white shadow-lg">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex justify-between items-center">
+            <span className="text-xl font-bold flex items-center gap-2">
+              <i className="fa-solid fa-bus text-orange-400"></i>
+              E-Barker
+            </span>
+            <span className="text-white/75 text-sm hidden sm:block">{user.role}: {user.name || user.email}</span>
+            <div className="flex gap-2">
+              <button onClick={() => navigate('/dashboard')} className="px-3 py-1.5 text-sm border border-white/30 rounded-lg hover:bg-white/10 transition">
+                <i className="fa-solid fa-arrow-left mr-1"></i> Dashboard
+              </button>
+              <button onClick={logout} className="px-3 py-1.5 text-sm bg-red-500 hover:bg-red-600 rounded-lg transition">
+                <i className="fa-solid fa-sign-out-alt mr-1"></i> Logout
+              </button>
+            </div>
           </div>
         </div>
       </nav>
 
-      <div className="container py-4">
-        <h4 className="fw-bold mb-4">📊 Reports &amp; Analytics</h4>
+      <div className="container mx-auto px-4 py-6">
+        <h4 className="font-bold text-2xl text-gray-800 mb-6 flex items-center gap-2">
+          <i className="fa-solid fa-chart-bar text-indigo-900"></i> Reports & Analytics
+        </h4>
 
-        {/* Filter card */}
-        <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: 14 }}>
-          <div className="card-body">
-            <div className="row g-3 align-items-end">
-              <div className="col-sm-4">
-                <label className="form-label small fw-semibold">Report Type</label>
-                <select className="form-select form-select-sm" value={reportType}
-                  onChange={e => setReportType(e.target.value)}>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                </select>
-              </div>
-              <div className="col-sm-4">
-                <label className="form-label small fw-semibold">
-                  {reportType === 'monthly' ? 'Month' : 'Date'}
-                </label>
-                <input
-                  type={reportType === 'monthly' ? 'month' : 'date'}
-                  className="form-control form-control-sm"
-                  value={date}
-                  onChange={e => setDate(e.target.value)}
-                />
-              </div>
-              <div className="col-sm-4">
-                <button onClick={generateReport} disabled={loading}
-                  className="btn btn-primary w-100 fw-semibold" style={{ borderRadius: 8 }}>
-                  {loading ? '⏳ Generating…' : '📊 Generate Report'}
-                </button>
-              </div>
+        <div className="bg-white rounded-xl shadow-md p-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Report Type</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-900 focus:border-transparent outline-none" value={reportType}
+                onChange={e => setReportType(e.target.value)}>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                {reportType === 'monthly' ? 'Month' : 'Date'}
+              </label>
+              <input
+                type={reportType === 'monthly' ? 'month' : 'date'}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-900 focus:border-transparent outline-none"
+                value={date}
+                onChange={e => setDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <button onClick={generateReport} disabled={loading}
+                className="w-full bg-indigo-900 hover:bg-indigo-800 text-white py-2 rounded-lg font-semibold transition">
+                {loading ? <><i className="fa-solid fa-spinner fa-spin mr-2"></i> Generating…</> : <><i className="fa-solid fa-chart-bar mr-2"></i> Generate Report</>}
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Summary stats */}
         {transactions.length > 0 && (
           <>
-            <div className="row g-3 mb-4">
-              <div className="col-6 col-md-3">
-                <div className="card border-0 shadow-sm text-center py-3" style={{ borderRadius: 14 }}>
-                  <div style={{ fontSize: 28 }}>💰</div>
-                  <h4 className="fw-bold mb-0 text-success">₱{total.toFixed(2)}</h4>
-                  <small className="text-muted">Total Collected</small>
-                </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white rounded-xl shadow-md text-center py-4">
+                <i className="fa-solid fa-money-bill-wave text-2xl text-green-600 mb-2"></i>
+                <h4 className="font-bold text-xl text-green-600">₱{total.toFixed(2)}</h4>
+                <small className="text-gray-500">Total Collected</small>
               </div>
-              <div className="col-6 col-md-3">
-                <div className="card border-0 shadow-sm text-center py-3" style={{ borderRadius: 14 }}>
-                  <div style={{ fontSize: 28 }}>🚗</div>
-                  <h4 className="fw-bold mb-0 text-primary">{transactions.length}</h4>
-                  <small className="text-muted">Total Trips</small>
-                </div>
+              <div className="bg-white rounded-xl shadow-md text-center py-4">
+                <i className="fa-solid fa-car text-2xl text-indigo-900 mb-2"></i>
+                <h4 className="font-bold text-xl text-indigo-900">{transactions.length}</h4>
+                <small className="text-gray-500">Total Trips</small>
               </div>
-              <div className="col-6 col-md-3">
-                <div className="card border-0 shadow-sm text-center py-3" style={{ borderRadius: 14 }}>
-                  <div style={{ fontSize: 28 }}>📈</div>
-                  <h4 className="fw-bold mb-0 text-warning">₱{avgFee.toFixed(2)}</h4>
-                  <small className="text-muted">Avg. Fee / Trip</small>
-                </div>
+              <div className="bg-white rounded-xl shadow-md text-center py-4">
+                <i className="fa-solid fa-chart-line text-2xl text-orange-500 mb-2"></i>
+                <h4 className="font-bold text-xl text-orange-500">₱{avgFee.toFixed(2)}</h4>
+                <small className="text-gray-500">Avg. Fee / Trip</small>
               </div>
-              <div className="col-6 col-md-3">
-                <div className="card border-0 shadow-sm text-center py-3" style={{ borderRadius: 14 }}>
-                  <div style={{ fontSize: 28 }}>👤</div>
-                  <h4 className="fw-bold mb-0 text-secondary">
-                    {[...new Set(transactions.map(t => t.driverId?._id))].length}
-                  </h4>
-                  <small className="text-muted">Active Drivers</small>
-                </div>
+              <div className="bg-white rounded-xl shadow-md text-center py-4">
+                <i className="fa-solid fa-user text-2xl text-gray-600 mb-2"></i>
+                <h4 className="font-bold text-xl text-gray-600">
+                  {[...new Set(transactions.map(t => t.driverId?._id))].length}
+                </h4>
+                <small className="text-gray-500">Active Drivers</small>
               </div>
             </div>
 
-            <div className="row g-4">
-              {/* Chart */}
-              <div className="col-12 col-lg-7">
-                <div className="card border-0 shadow-sm" style={{ borderRadius: 14 }}>
-                  <div className="card-body">
-                    <canvas ref={chartRef} />
-                  </div>
+            <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
+              <div className="lg:col-span-4">
+                <div className="bg-white rounded-xl shadow-md p-4">
+                  <canvas ref={chartRef}></canvas>
                 </div>
               </div>
 
-              {/* Transaction table */}
-              <div className="col-12 col-lg-5">
-                <div className="card border-0 shadow-sm" style={{ borderRadius: 14 }}>
-                  <div className="card-header bg-white border-0 py-3">
-                    <h6 className="mb-0 fw-bold">Transaction Log</h6>
+              <div className="lg:col-span-3">
+                <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                  <div className="px-4 py-3 border-b bg-gray-50">
+                    <h6 className="font-bold flex items-center gap-2">
+                      <i className="fa-solid fa-list text-indigo-900"></i> Transaction Log
+                    </h6>
                   </div>
-                  <div className="card-body p-0" style={{ maxHeight: 420, overflowY: 'auto' }}>
-                    <table className="table table-hover table-sm mb-0">
-                      <thead className="table-light sticky-top">
+                  <div className="max-h-80 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
                         <tr>
-                          <th>Date</th>
-                          <th>Driver</th>
-                          <th className="text-end">Amount</th>
+                          <th className="px-4 py-2 text-left font-semibold text-gray-600">Date</th>
+                          <th className="px-4 py-2 text-left font-semibold text-gray-600">Driver</th>
+                          <th className="px-4 py-2 text-right font-semibold text-gray-600">Amount</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="divide-y">
                         {transactions.map(t => (
-                          <tr key={t._id}>
-                            <td className="small">{new Date(t.createdAt).toLocaleDateString()}</td>
-                            <td className="small">{t.driverId?.name || 'Driver'}</td>
-                            <td className="text-end small fw-semibold text-success">₱{parseFloat(t.feeAmount).toFixed(2)}</td>
+                          <tr key={t._id} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 text-gray-600">{new Date(t.createdAt).toLocaleDateString()}</td>
+                            <td className="px-4 py-2">{t.driverId?.name || 'Driver'}</td>
+                            <td className="px-4 py-2 text-right font-semibold text-green-600">₱{parseFloat(t.feeAmount).toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
-                      <tfoot className="table-light">
+                      <tfoot className="bg-gray-50">
                         <tr>
-                          <td colSpan={2}><strong>Total</strong></td>
-                          <td className="text-end"><strong className="text-success">₱{total.toFixed(2)}</strong></td>
+                          <td className="px-4 py-2 font-semibold" colSpan={2}>Total</td>
+                          <td className="px-4 py-2 text-right font-semibold text-green-600">₱{total.toFixed(2)}</td>
                         </tr>
                       </tfoot>
                     </table>
@@ -236,8 +233,8 @@ function ReportsPage() {
         )}
 
         {transactions.length === 0 && !loading && (
-          <div className="text-center py-5 text-muted">
-            <div style={{ fontSize: 48 }}>📊</div>
+          <div className="text-center py-12 text-gray-500">
+            <i className="fa-solid fa-chart-bar text-5xl text-gray-300 mb-3"></i>
             <p className="mt-2">No transactions found. Select a date range and click Generate.</p>
           </div>
         )}

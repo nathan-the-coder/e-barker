@@ -12,27 +12,36 @@ const queueSchema = new mongoose.Schema({
   },
   currentLocation: String,
   destination: String,
+  routeOrigin: String,
+  routeDestination: String,
+  routePolyline: String,
   checkInTime: {
     type: Date,
     default: Date.now
   },
   dispatchTime: Date,
-  estimatedArrivalTime: Number,  // in minutes
+  confirmedTime: Date,
+  estimatedArrivalTime: Number,
   completedTime: Date,
   status: {
     type: String,
-    enum: ['Waiting', 'On-trip', 'Completed', 'Offline'],
+    enum: ['Waiting', 'On-trip', 'Confirmed', 'Completed', 'Offline'],
     default: 'Waiting'
   },
   dispatcherId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }
+  },
+  currentLat: Number,
+  currentLng: Number,
+  distanceKm: Number,
+  lastLocationUpdate: Date
 }, {
   timestamps: true
 });
 
 // Index for FIFO queries
 queueSchema.index({ status: 1, checkInTime: 1 });
+queueSchema.index({ driverId: 1, status: 1 });
 
 export default mongoose.model('Queue', queueSchema);

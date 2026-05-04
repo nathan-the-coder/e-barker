@@ -1,5 +1,3 @@
-/** biome-ignore-all assist/source/organizeImports: <explanation> */
-/** biome-ignore-all lint/correctness/useExhaustiveDependencies: <explanation> */
 import Swal from "sweetalert2";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -12,6 +10,7 @@ function DispatcherDashboard() {
   const navigate = useNavigate();
   const [activeQueue, setActiveQueue] = useState([]);
   const [recentQueue, setRecentQueue] = useState([]);
+  const [trackingQueue, setTrackingQueue] = useState([]);
   const [todayTotal, setTodayTotal] = useState(0);
   const [todayTrips, setTodayTrips] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -24,17 +23,19 @@ function DispatcherDashboard() {
 
   const loadData = async () => {
     try {
-      const [active, recent, today, matrix] = await Promise.all([
+      const [active, recent, today, matrix, tracking] = await Promise.all([
         queueAPI.getActive(),
         queueAPI.getRecent(),
         transactionAPI.getToday(),
         fareAPI.getMatrix(),
+        queueAPI.getTracking(),
       ]);
       setActiveQueue(active.queue || []);
       setRecentQueue(recent.queue || []);
       setTodayTotal(today.total || 0);
       setTodayTrips((today.transactions || []).length);
       setFareMatrix(matrix.matrix);
+      setTrackingQueue(tracking.vehicles || []);
       setLoading(false);
     } catch (err) {
       console.error("Error loading data:", err);
@@ -66,7 +67,7 @@ function DispatcherDashboard() {
     loadData();
     loadTraffic();
     const iv = setInterval(loadData, 10000);
-    const tv = setInterval(loadTraffic, 120000); // refresh traffic every 2 min
+    const tv = setInterval(loadTraffic, 120000);
     return () => {
       clearInterval(iv);
       clearInterval(tv);
@@ -80,7 +81,6 @@ function DispatcherDashboard() {
     level === "heavy" ? "#ffebee" : level === "moderate" ? "#fff3e0" : "#e8f5e9";
 
   const handleDispatch = async (id, driverName, bodyNo) => {
-    // Ask for optional route info
     const { value: origin } = await Swal.fire({
       title: `Dispatch ${driverName}`,
       input: "text",
@@ -115,14 +115,14 @@ function DispatcherDashboard() {
             title: "Route & Fare Preview",
             html: `
               <div class="text-start">
-                <p><strong>📍 ${r.origin}</strong><br/>→ ${r.destination}</p>
-                <p>📏 <strong>Distance:</strong> ${r.distanceText} (${r.distanceKm} km)<br/>
-                   ⏱ <strong>ETA (with traffic):</strong> ${r.durationInTrafficText}<br/>
-                   🚦 <strong>Congestion:</strong> ${r.congestion?.toUpperCase()}</p>
+                <p><strong><i class="fa-solid fa-location-dot"></i> ${r.origin}</strong><br/>→ ${r.destination}</p>
+                <p><i class="fa-solid fa-road"></i> <strong>Distance:</strong> ${r.distanceText} (${r.distanceKm} km)<br/>
+                   <i class="fa-solid fa-clock"></i> <strong>ETA (with traffic):</strong> ${r.durationInTrafficText}<br/>
+                   <i class="fa-solid fa-traffic-light"></i> <strong>Congestion:</strong> ${r.congestion?.toUpperCase()}</p>
                 <hr/>
-                <p>💰 <strong>Fare per Passenger:</strong> ₱${f.farePerPassenger.toFixed(2)}<br/>
+                <p><i class="fa-solid fa-peso-sign"></i> <strong>Fare per Passenger:</strong> ₱${f.farePerPassenger.toFixed(2)}<br/>
                    <small class="text-muted">${f.breakdown}</small></p>
-                <p>🏷 <strong>Terminal Fee:</strong> ₱${f.terminalFee.toFixed(2)}</p>
+                <p><i class="fa-solid fa-tag"></i> <strong>Terminal Fee:</strong> ₱${f.terminalFee.toFixed(2)}</p>
               </div>`,
             icon: "info",
             showCancelButton: true,
@@ -131,11 +131,9 @@ function DispatcherDashboard() {
           if (!isConfirmed) return;
         } catch (err) {
           Swal.close();
-          // If route fetch fails, continue with plain dispatch
         }
       }
     } else {
-      // Plain dispatch confirmation
       const { isConfirmed } = await Swal.fire({
         title: "Dispatch Driver?",
         html: `Dispatch <strong>${driverName}</strong> (Body #${bodyNo})?<br/><small class="text-muted">Terminal fee: ₱${fareMatrix?.terminal_fee?.toFixed(2) || "10.00"}</small>`,
@@ -155,6 +153,7 @@ function DispatcherDashboard() {
               origin: routeData.route?.origin,
               destination: routeData.route?.destination,
               distanceKm: routeData.route?.distanceKm,
+              polyline: routeData.route?.polyline,
             }
           : {},
       );
@@ -207,175 +206,215 @@ function DispatcherDashboard() {
 
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center min-vh-100">
-        <div className="spinner-border text-primary" role="status" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-indigo-900 text-xl">
+          <i className="fa-solid fa-spinner fa-spin text-3xl mb-2"></i>
+          <p>Loading...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f4f6fb" }}>
-      {/* Navbar */}
-      <nav
-        className="navbar navbar-dark"
-        style={{ background: "linear-gradient(135deg,#1a237e,#283593)" }}
-      >
-        <div className="container">
-          <span className="navbar-brand fw-bold">🚐 E-Barker Dispatch</span>
-          <span className="text-white opacity-75 small">Dispatcher: {user.name || user.email}</span>
-          <div className="d-flex gap-2">
-            <button
-              type="button"
-              onClick={() => navigate("/maps")}
-              className="btn btn-sm btn-outline-light"
-            >
-              🗺 Maps
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/reports")}
-              className="btn btn-sm btn-outline-light"
-            >
-              📊 Reports
-            </button>
-            <button type="button" onClick={logout} className="btn btn-sm btn-danger">
-              Logout
-            </button>
+    <div className="min-h-screen bg-gray-100">
+      <nav className="bg-gradient-to-r from-indigo-900 to-indigo-800 text-white shadow-lg">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex justify-between items-center">
+            <span className="text-xl font-bold flex items-center gap-2">
+              <i className="fa-solid fa-bus text-orange-400"></i>
+              E-Barker Dispatch
+            </span>
+            <span className="text-white/75 text-sm hidden sm:block">Dispatcher: {user.name || user.email}</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => navigate("/maps")}
+                className="px-3 py-1.5 text-sm border border-white/30 rounded-lg hover:bg-white/10 transition"
+              >
+                <i className="fa-solid fa-map mr-1"></i> Maps
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/reports")}
+                className="px-3 py-1.5 text-sm border border-white/30 rounded-lg hover:bg-white/10 transition"
+              >
+                <i className="fa-solid fa-chart-bar mr-1"></i> Reports
+              </button>
+              <button type="button" onClick={logout} className="px-3 py-1.5 text-sm bg-red-500 hover:bg-red-600 rounded-lg transition">
+                <i className="fa-solid fa-sign-out-alt mr-1"></i> Logout
+              </button>
+            </div>
           </div>
         </div>
       </nav>
 
-      <div className="container py-4">
-        {/* Stats row */}
-        <div className="row g-3 mb-4">
-          <div className="col-6 col-md-3">
-            <div className="card border-0 shadow-sm text-center py-3" style={{ borderRadius: 14 }}>
-              <div style={{ fontSize: 28 }}>💰</div>
-              <h4 className="fw-bold mb-0 text-success">₱{parseFloat(todayTotal).toFixed(2)}</h4>
-              <small className="text-muted">Fees Today</small>
-            </div>
+      <div className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-xl shadow-md text-center py-4">
+            <i className="fa-solid fa-money-bill-wave text-3xl text-green-600 mb-2"></i>
+            <h4 className="font-bold text-xl text-green-600">₱{parseFloat(todayTotal).toFixed(2)}</h4>
+            <small className="text-gray-500">Fees Today</small>
           </div>
-          <div className="col-6 col-md-3">
-            <div className="card border-0 shadow-sm text-center py-3" style={{ borderRadius: 14 }}>
-              <div style={{ fontSize: 28 }}>🚗</div>
-              <h4 className="fw-bold mb-0 text-primary">{todayTrips}</h4>
-              <small className="text-muted">Trips Today</small>
-            </div>
+          <div className="bg-white rounded-xl shadow-md text-center py-4">
+            <i className="fa-solid fa-car text-3xl text-indigo-900 mb-2"></i>
+            <h4 className="font-bold text-xl text-indigo-900">{todayTrips}</h4>
+            <small className="text-gray-500">Trips Today</small>
           </div>
-          <div className="col-6 col-md-3">
-            <div className="card border-0 shadow-sm text-center py-3" style={{ borderRadius: 14 }}>
-              <div style={{ fontSize: 28 }}>⏳</div>
-              <h4 className="fw-bold mb-0 text-warning">{activeQueue.length}</h4>
-              <small className="text-muted">In Queue</small>
-            </div>
+          <div className="bg-white rounded-xl shadow-md text-center py-4">
+            <i className="fa-solid fa-hourglass-half text-3xl text-orange-500 mb-2"></i>
+            <h4 className="font-bold text-xl text-orange-500">{activeQueue.length}</h4>
+            <small className="text-gray-500">In Queue</small>
           </div>
-          <div className="col-6 col-md-3">
-            <div className="card border-0 shadow-sm text-center py-3" style={{ borderRadius: 14 }}>
-              <div style={{ fontSize: 28 }}>🏷</div>
-              <h4 className="fw-bold mb-0 text-secondary">
-                ₱{fareMatrix?.terminal_fee?.toFixed(2) || "10.00"}
-              </h4>
-              <small className="text-muted">Terminal Fee</small>
-            </div>
+          <div className="bg-white rounded-xl shadow-md text-center py-4">
+            <i className="fa-solid fa-tag text-3xl text-gray-600 mb-2"></i>
+            <h4 className="font-bold text-xl text-gray-600">
+              ₱{fareMatrix?.terminal_fee?.toFixed(2) || "10.00"}
+            </h4>
+            <small className="text-gray-500">Terminal Fee</small>
           </div>
         </div>
 
-        <div className="row g-4">
-          {/* Left column */}
-          <div className="col-md-4">
-            {/* Traffic widget */}
-            <div className="card border-0 shadow-sm mb-3" style={{ borderRadius: 14 }}>
-              <div className="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                <h6 className="mb-0 fw-bold">🚦 Traffic Conditions</h6>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="md:col-span-1 space-y-4">
+            <div className="bg-white rounded-xl shadow-md p-4">
+              <div className="flex justify-between items-center mb-3">
+                <h6 className="font-bold flex items-center gap-2">
+                  <i className="fa-solid fa-traffic-light text-orange-500"></i> Traffic Conditions
+                </h6>
                 <button
                   onClick={loadTraffic}
                   disabled={trafficLoading}
-                  className="btn btn-sm btn-outline-secondary"
-                  style={{ borderRadius: 50 }}
+                  className="p-2 rounded-full hover:bg-gray-100 text-gray-500"
                 >
-                  {trafficLoading ? "…" : "↻"}
+                  <i className={`fa-solid fa-rotate ${trafficLoading ? 'fa-spin' : ''}`}></i>
                 </button>
               </div>
-              <div className="card-body pt-0">
-                {traffic ? (
-                  <div
-                    className="p-2 rounded"
-                    style={{ background: congestionBg(traffic.congestion_level) }}
-                  >
-                    <strong style={{ color: congestionColor(traffic.congestion_level) }}>
-                      {traffic.congestion_level?.toUpperCase()} TRAFFIC
-                    </strong>
-                    <p className="mb-1 mt-1 small">
-                      📏 {traffic.distance} &nbsp;|&nbsp; ⏱ {traffic.duration_in_traffic}
-                    </p>
-                    <small className="text-muted">
-                      {traffic.origin} → {traffic.destination}
-                    </small>
-                  </div>
-                ) : (
-                  <p className="text-muted small mb-0">
-                    {trafficLoading ? "Loading…" : "Click ↻ to refresh"}
+              {traffic ? (
+                <div
+                  className="p-3 rounded-lg"
+                  style={{ background: congestionBg(traffic.congestion_level) }}
+                >
+                  <strong style={{ color: congestionColor(traffic.congestion_level) }}>
+                    {traffic.congestion_level?.toUpperCase()} TRAFFIC
+                  </strong>
+                  <p className="text-sm mt-1 text-gray-600">
+                    <i className="fa-solid fa-road mr-1"></i> {traffic.distance} &nbsp;|&nbsp; <i className="fa-solid fa-clock mr-1"></i> {traffic.duration_in_traffic}
                   </p>
-                )}
-              </div>
+                  <small className="text-gray-500 block mt-1">
+                    {traffic.origin} → {traffic.destination}
+                  </small>
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">
+                  {trafficLoading ? "Loading…" : "Click ↻ to refresh"}
+                </p>
+              )}
             </div>
 
-            {/* Actions */}
-            <div className="card border-0 shadow-sm mb-3" style={{ borderRadius: 14 }}>
-              <div className="card-body">
-                <h6 className="fw-bold mb-3">⚡ Actions</h6>
-                <button
-                  type="button"
-                  onClick={handleRegisterTrip}
-                  className="btn btn-success w-100 mb-2 fw-semibold"
-                >
-                  ＋ Register New Trip
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/maps")}
-                  className="btn btn-outline-primary w-100 mb-2"
-                >
-                  🗺 Open Maps & Routes
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/reports")}
-                  className="btn btn-outline-secondary w-100"
-                >
-                  📊 View Reports
-                </button>
-              </div>
+            <div className="bg-white rounded-xl shadow-md p-4">
+              <h6 className="font-bold mb-3 flex items-center gap-2">
+                <i className="fa-solid fa-bolt text-yellow-500"></i> Actions
+              </h6>
+              <button
+                type="button"
+                onClick={handleRegisterTrip}
+                className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-medium mb-2 transition"
+              >
+                <i className="fa-solid fa-plus mr-2"></i> Register New Trip
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/maps")}
+                className="w-full border-2 border-indigo-900 text-indigo-900 hover:bg-indigo-50 py-2 rounded-lg font-medium mb-2 transition"
+              >
+                <i className="fa-solid fa-map mr-2"></i> Open Maps & Routes
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/reports")}
+                className="w-full border-2 border-gray-400 text-gray-600 hover:bg-gray-50 py-2 rounded-lg transition"
+              >
+                <i className="fa-solid fa-chart-bar mr-2"></i> View Reports
+              </button>
             </div>
 
-            {/* Recently dispatched */}
-            <div className="card border-0 shadow-sm" style={{ borderRadius: 14 }}>
-              <div className="card-header bg-white border-0 py-3">
-                <h6 className="mb-0 fw-bold">🕐 Recently Dispatched</h6>
+            <div className="bg-white rounded-xl shadow-md">
+              <div className="px-4 py-3 border-b">
+                <h6 className="font-bold flex items-center gap-2">
+                  <i className="fa-solid fa-truck text-blue-500"></i> Active Trips Tracking
+                </h6>
               </div>
-              <div className="card-body p-0">
-                {recentQueue.length === 0 ? (
-                  <p className="text-center text-muted py-3 small">No recent dispatches</p>
+              <div className="max-h-64 overflow-y-auto">
+                {trackingQueue.length === 0 ? (
+                  <p className="text-center text-gray-500 py-4 text-sm">No active trips</p>
                 ) : (
-                  <div className="list-group list-group-flush">
-                    {recentQueue.map((entry) => (
-                      <div key={entry._id} className="list-group-item px-3 py-2">
-                        <div className="d-flex justify-content-between">
+                  <div className="divide-y">
+                    {trackingQueue.map((entry) => (
+                      <div key={entry._id} className="px-4 py-3">
+                        <div className="flex justify-between">
                           <div>
-                            <strong className="small">{entry.driverId?.name || "Driver"}</strong>
-                            <br />
-                            <small className="text-muted">
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${entry.status === 'Confirmed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                              {entry.status}
+                            </span>
+                            <div className="font-medium text-sm mt-1">{entry.driverId?.name || "Driver"}</div>
+                            <div className="text-xs text-gray-500">
                               Body #{entry.vehicleId?.bodyNumber || "N/A"}
-                            </small>
+                            </div>
+                            {entry.currentLat && entry.currentLng && (
+                              <div className="text-xs text-gray-500">
+                                <i className="fa-solid fa-location-dot mr-1"></i> {entry.currentLat.toFixed(4)}, {entry.currentLng.toFixed(4)}
+                              </div>
+                            )}
                           </div>
-                          <small className="text-muted">
+                          <div className="text-xs text-gray-500 text-right">
                             {entry.dispatchTime
                               ? new Date(entry.dispatchTime).toLocaleTimeString([], {
                                   hour: "2-digit",
                                   minute: "2-digit",
                                 })
                               : "N/A"}
-                          </small>
+                            {entry.lastLocationUpdate && (
+                              <div className="text-xs">
+                                Updated: {new Date(entry.lastLocationUpdate).toLocaleTimeString()}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-md">
+              <div className="px-4 py-3 border-b">
+                <h6 className="font-bold flex items-center gap-2">
+                  <i className="fa-solid fa-clock text-gray-600"></i> Recently Dispatched
+                </h6>
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {recentQueue.length === 0 ? (
+                  <p className="text-center text-gray-500 py-4 text-sm">No recent dispatches</p>
+                ) : (
+                  <div className="divide-y">
+                    {recentQueue.map((entry) => (
+                      <div key={entry._id} className="px-4 py-3">
+                        <div className="flex justify-between">
+                          <div>
+                            <div className="font-medium text-sm">{entry.driverId?.name || "Driver"}</div>
+                            <div className="text-xs text-gray-500">
+                              Body #{entry.vehicleId?.bodyNumber || "N/A"}
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {entry.dispatchTime
+                              ? new Date(entry.dispatchTime).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "N/A"}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -385,39 +424,32 @@ function DispatcherDashboard() {
             </div>
           </div>
 
-          {/* Right column – active queue */}
-          <div className="col-md-8">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-              <h5 className="fw-bold mb-0">📋 Active Queue (FIFO)</h5>
-              <span className="badge bg-primary fs-6">{activeQueue.length} waiting</span>
+          <div className="md:col-span-3">
+            <div className="flex justify-between items-center mb-4">
+              <h5 className="font-bold text-lg flex items-center gap-2">
+                <i className="fa-solid fa-clipboard-list text-indigo-900"></i> Active Queue (FIFO)
+              </h5>
+              <span className="bg-indigo-900 text-white px-3 py-1 rounded-full text-sm">{activeQueue.length} waiting</span>
             </div>
 
             {activeQueue.length === 0 ? (
-              <div
-                className="card border-0 shadow-sm text-center py-5"
-                style={{ borderRadius: 14 }}
-              >
-                <p className="text-muted mb-0">No drivers in queue</p>
+              <div className="bg-white rounded-xl shadow-md text-center py-12">
+                <i className="fa-solid fa-car-side text-4xl text-gray-300 mb-3"></i>
+                <p className="text-gray-500">No drivers in queue</p>
               </div>
             ) : (
               <>
-                {/* Next in line — big card */}
                 {activeQueue[0] && (
                   <div
-                    className="card border-0 shadow mb-3"
-                    style={{
-                      borderRadius: 14,
-                      background: "linear-gradient(135deg,#1a237e,#283593)",
-                      color: "#fff",
-                    }}
+                    className="bg-gradient-to-r from-indigo-900 to-indigo-800 text-white rounded-xl shadow-lg mb-4 p-5"
                   >
-                    <div className="card-body d-flex justify-content-between align-items-center p-4">
+                    <div className="flex justify-between items-center">
                       <div>
-                        <span className="badge bg-success mb-2">NEXT IN LINE</span>
-                        <h4 className="mb-0 fw-bold">
+                        <span className="bg-green-500 text-white px-2 py-1 rounded text-sm font-medium mb-2 inline-block">NEXT IN LINE</span>
+                        <h4 className="font-bold text-2xl">
                           Body #{activeQueue[0].vehicleId?.bodyNumber || "N/A"}
                         </h4>
-                        <p className="mb-0 opacity-75">
+                        <p className="opacity-75">
                           Driver: {activeQueue[0].driverId?.name || "Unknown"}
                         </p>
                         <small className="opacity-50">
@@ -426,8 +458,7 @@ function DispatcherDashboard() {
                       </div>
                       <button
                         type="button"
-                        className="btn btn-light btn-lg fw-bold"
-                        style={{ borderRadius: 12, color: "#1a237e", minWidth: 120 }}
+                        className="bg-white text-indigo-900 hover:bg-gray-100 font-bold py-3 px-6 rounded-xl transition"
                         onClick={() =>
                           handleDispatch(
                             activeQueue[0]._id,
@@ -436,13 +467,12 @@ function DispatcherDashboard() {
                           )
                         }
                       >
-                        🚀 DISPATCH
+                        <i className="fa-solid fa-rocket mr-2"></i> DISPATCH
                       </button>
                     </div>
                   </div>
                 )}
 
-                {/* Rest of the queue */}
                 {activeQueue.slice(1).map((entry, i) => {
                   const waited = Math.floor(
                     (Date.now() - new Date(entry.checkInTime).getTime()) / 60000,
@@ -450,18 +480,17 @@ function DispatcherDashboard() {
                   return (
                     <div
                       key={entry._id || i}
-                      className="card border-0 shadow-sm mb-2"
-                      style={{ borderRadius: 12 }}
+                      className="bg-white rounded-lg shadow-sm mb-2 p-3"
                     >
-                      <div className="card-body d-flex justify-content-between align-items-center py-2 px-3">
+                      <div className="flex justify-between items-center">
                         <div>
-                          <span className="badge bg-secondary me-2">#{i + 2}</span>
-                          <strong>Body #{entry.vehicleId?.bodyNumber || "N/A"}</strong>
-                          <small className="text-muted ms-2">
+                          <span className="bg-gray-400 text-white px-2 py-0.5 rounded text-xs mr-2">#{i + 2}</span>
+                          <span className="font-medium">Body #{entry.vehicleId?.bodyNumber || "N/A"}</span>
+                          <span className="text-gray-500 text-sm ml-2">
                             {entry.driverId?.name || "Unknown"}
-                          </small>
+                          </span>
                         </div>
-                        <small className="text-muted">Waited {waited}m</small>
+                        <small className="text-gray-500">Waited {waited}m</small>
                       </div>
                     </div>
                   );

@@ -21,7 +21,9 @@
     "sweetalert2-react-content": "^5.1.2"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.2.4",
     "@vitejs/plugin-react": "^6.0.1",
+    "tailwindcss": "^4.2.4",
     "vite": "^8.0.10"
   }
 }

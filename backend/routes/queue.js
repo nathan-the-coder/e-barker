@@ -114,7 +114,7 @@ router.post('/join', verifyToken, requireRole(['driver']), async (req, res) => {
 // Dispatch driver (change status to on-trip)
 router.post('/dispatch/:id', verifyToken, requireRole(['dispatcher', 'admin']), async (req, res) => {
   const { id } = req.params;
-  const { estimated_time_minutes, dispatcher_id } = req.body;
+  const { estimated_time_minutes, dispatcher_id, route_origin, route_destination, route_polyline, distance_km } = req.body;
 
   const entry = await Queue.findById(id);
   if (!entry) {
@@ -126,15 +126,22 @@ router.post('/dispatch/:id', verifyToken, requireRole(['dispatcher', 'admin']), 
 
   const finalDispatcherId = dispatcher_id || req.user?.userId;
 
-  // Update queue status
+  // Update queue status with route data
+  const updateData = {
+    status: 'On-trip',
+    dispatchTime: new Date(),
+    estimatedArrivalTime: estimated_time_minutes || null,
+    dispatcherId: finalDispatcherId
+  };
+
+  if (route_origin) updateData.routeOrigin = route_origin;
+  if (route_destination) updateData.routeDestination = route_destination;
+  if (route_polyline) updateData.routePolyline = route_polyline;
+  if (distance_km) updateData.distanceKm = distance_km;
+
   const updated = await Queue.findByIdAndUpdate(
     id,
-    {
-      status: 'On-trip',
-      dispatchTime: new Date(),
-      estimatedArrivalTime: estimated_time_minutes || null,
-      dispatcherId: finalDispatcherId
-    },
+    updateData,
     { new: true }
   ).populate('driverId', 'name').populate('vehicleId', 'bodyNumber vehicleType');
 
@@ -163,7 +170,7 @@ router.post('/complete/:id', verifyToken, requireRole(['driver']), async (req, r
     return notFound(res, 'Queue entry not found');
   }
 
-  if (entry.status !== 'On-trip') {
+  if (entry.status !== 'On-trip' && entry.status !== 'Confirmed') {
     return errorResponse(res, 'Queue entry is not On-trip');
   }
 
@@ -180,6 +187,79 @@ router.post('/complete/:id', verifyToken, requireRole(['driver']), async (req, r
   });
 
   res.json({ message: 'Trip completed successfully' });
+});
+
+// Confirm trip (driver confirms after dispatch)
+router.post('/confirm/:id', verifyToken, requireRole(['driver']), async (req, res) => {
+  const { id } = req.params;
+
+  const entry = await Queue.findById(id);
+
+  if (!entry) {
+    return notFound(res, 'Queue entry not found');
+  }
+
+  if (entry.status !== 'On-trip') {
+    return errorResponse(res, 'Queue entry must be On-trip to confirm');
+  }
+
+  // Mark as Confirmed - driver acknowledged the dispatch
+  entry.status = 'Confirmed';
+  entry.confirmedTime = new Date();
+  await entry.save();
+
+  await entry.populate('driverId', 'name');
+  await entry.populate('vehicleId', 'bodyNumber vehicleType');
+
+  res.json({ entry, message: 'Trip confirmed successfully' });
+});
+
+// Update driver location during trip
+router.post('/location/:id', verifyToken, requireRole(['driver']), async (req, res) => {
+  const { id } = req.params;
+  const { lat, lng } = req.body;
+
+  if (lat === undefined || lng === undefined) {
+    return errorResponse(res, 'lat and lng coordinates required');
+  }
+
+  const entry = await Queue.findById(id);
+
+  if (!entry) {
+    return notFound(res, 'Queue entry not found');
+  }
+
+  if (entry.status !== 'On-trip' && entry.status !== 'Confirmed') {
+    return errorResponse(res, 'Queue entry must be On-trip or Confirmed');
+  }
+
+  // Update location
+  entry.currentLat = parseFloat(lat);
+  entry.currentLng = parseFloat(lng);
+  entry.lastLocationUpdate = new Date();
+  await entry.save();
+
+  res.json({
+    message: 'Location updated',
+    location: {
+      lat: entry.currentLat,
+      lng: entry.currentLng,
+      updatedAt: entry.lastLocationUpdate
+    }
+  });
+});
+
+// Get on-trip vehicles with location (for tracking)
+router.get('/tracking', verifyToken, requireRole(['dispatcher', 'admin']), async (req, res) => {
+  const vehicles = await Queue.find({
+    status: { $in: ['On-trip', 'Confirmed'] }
+  })
+    .populate('driverId', 'name')
+    .populate('vehicleId', 'bodyNumber vehicleType')
+    .sort({ dispatchTime: -1 })
+    .exec();
+
+  res.json({ vehicles });
 });
 
 // Register new trip (skip queue - dispatcher only)

@@ -79,8 +79,18 @@ export const queueAPI = {
         estimated_time_minutes: opts.estimatedMinutes || null,
         route_origin: opts.origin || null,
         route_destination: opts.destination || null,
+        route_polyline: opts.polyline || null,
         distance_km: opts.distanceKm || null,
       }),
+    }),
+  confirm: (id) =>
+    apiRequest(`/queue/confirm/${id}`, {
+      method: "POST",
+    }),
+  updateLocation: (id, lat, lng) =>
+    apiRequest(`/queue/location/${id}`, {
+      method: "POST",
+      body: JSON.stringify({ lat, lng }),
     }),
   complete: (id) =>
     apiRequest(`/queue/complete/${id}`, {
@@ -93,6 +103,7 @@ export const queueAPI = {
     }),
   getDrivers: () => apiRequest("/users/drivers/list"),
   getTraffic: (origin, destination) => getTrafficData(origin, destination),
+  getTracking: () => apiRequest("/queue/tracking"),
 };
 
 // ─── Transactions ────────────────────────────────────────────────────────────

@@ -3,8 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import { AuthProvider } from './hooks/useAuth';
-import 'bootswatch/dist/cerulean/bootstrap.min.css';
-import './assets/css/style.css';
+import './index.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
