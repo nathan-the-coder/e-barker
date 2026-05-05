@@ -15,6 +15,11 @@ const queueSchema = new mongoose.Schema({
   routeOrigin: String,
   routeDestination: String,
   routePolyline: String,
+  routeTaken: {
+    type: String,
+    enum: ['highway', 'penablanca', null],
+    default: null
+  },
   checkInTime: {
     type: Date,
     default: Date.now

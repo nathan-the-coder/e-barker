@@ -17,18 +17,20 @@ function DispatcherDashboard() {
   const [fareMatrix, setFareMatrix] = useState(null);
   const [traffic, setTraffic] = useState(null);
   const [trafficLoading, setTrafficLoading] = useState(false);
+  const [pendingTrips, setPendingTrips] = useState([]);
 
   const TERMINAL = "San Jose, Baggao, Cagayan";
   const MAIN_DEST = "Tuguegarao City, Cagayan";
 
   const loadData = async () => {
     try {
-      const [active, recent, today, matrix, tracking] = await Promise.all([
+      const [active, recent, today, matrix, tracking, pending] = await Promise.all([
         queueAPI.getActive(),
         queueAPI.getRecent(),
         transactionAPI.getToday(),
         fareAPI.getMatrix(),
         queueAPI.getTracking(),
+        queueAPI.getPending(),
       ]);
       setActiveQueue(active.queue || []);
       setRecentQueue(recent.queue || []);
@@ -36,6 +38,7 @@ function DispatcherDashboard() {
       setTodayTrips((today.transactions || []).length);
       setFareMatrix(matrix.matrix);
       setTrackingQueue(tracking.vehicles || []);
+      setPendingTrips(pending.pending || []);
       setLoading(false);
     } catch (err) {
       console.error("Error loading data:", err);
@@ -79,6 +82,52 @@ function DispatcherDashboard() {
 
   const congestionBg = (level) =>
     level === "heavy" ? "#ffebee" : level === "moderate" ? "#fff3e0" : "#e8f5e9";
+
+  const handleRecordTrip = async (transactionId, driverName, routeTaken) => {
+    const { value: formValues } = await Swal.fire({
+      title: `Record Trip - ${driverName}`,
+      html: `
+        <div class="text-left">
+          <div class="mb-3">
+            <label class="block text-sm font-medium mb-1">Route Taken</label>
+            <div class="text-lg font-bold text-indigo-900">${routeTaken === 'highway' ? 'Highway' : routeTaken === 'penablanca' ? 'Penablanca' : 'N/A'}</div>
+          </div>
+          <div class="mb-3">
+            <label class="block text-sm font-medium mb-1">Regular (₱150)</label>
+            <input type="number" id="regularCount" class="swal2-input" min="0" value="0" />
+          </div>
+          <div class="mb-3">
+            <label class="block text-sm font-medium mb-1">Senior/Student (₱130)</label>
+            <input type="number" id="seniorCount" class="swal2-input" min="0" value="0" />
+          </div>
+          <div>
+            <label class="flex items-center">
+              <input type="checkbox" id="addToQueue" class="mr-2" checked />
+              <span class="text-sm">Add driver back to queue</span>
+            </label>
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: "Record",
+      cancelButtonText: "Cancel",
+      preConfirm: () => ({
+        regular: parseInt(document.getElementById('regularCount').value) || 0,
+        senior: parseInt(document.getElementById('seniorCount').value) || 0,
+        addToQueue: document.getElementById('addToQueue').checked
+      })
+    });
+
+    if (!formValues) return;
+
+    try {
+      const result = await queueAPI.recordTrip(transactionId, formValues.regular, formValues.senior, formValues.addToQueue);
+      Swal.fire({ title: "Recorded!", html: `Total: ₱${result.transaction.totalFare}`, icon: "success" });
+      loadData();
+    } catch (err) {
+      Swal.fire({ title: "Error", text: err.message, icon: "error" });
+    }
+  };
 
   const handleDispatch = async (id, driverName, bodyNo) => {
     const { value: origin } = await Swal.fire({
@@ -497,6 +546,26 @@ function DispatcherDashboard() {
                 })}
               </>
             )}
+          {pendingTrips.length > 0 && (
+            <div className="mt-4 bg-white rounded-xl shadow-md">
+              <div className="px-4 py-3 border-b bg-orange-50">
+                <h6 className="font-bold flex items-center gap-2">
+                  <i className="fa-solid fa-clock text-orange-600"></i> Pending ({pendingTrips.length})
+                </h6>
+              </div>
+              <div className="divide-y max-h-48 overflow-y-auto">
+                {pendingTrips.map((trip) => (
+                  <div key={trip._id} className="px-4 py-3 flex justify-between items-center">
+                    <div>
+                      <div className="font-medium text-sm">{trip.driverId?.name || 'Driver'}</div>
+                      <div className="text-xs text-gray-500">Route: {trip.queueId?.routeTaken || 'N/A'}</div>
+                    </div>
+                    <button onClick={() => handleRecordTrip(trip._id, trip.driverId?.name, trip.queueId?.routeTaken)} className="bg-orange-500 text-white px-3 py-1.5 rounded text-sm">Record</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           </div>
         </div>
       </div>

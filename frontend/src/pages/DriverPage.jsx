@@ -275,18 +275,49 @@ function DriverPage() {
 
   const handleConfirmTrip = async () => {
     if (!queueStatus || queueStatus.status !== "On-trip") return;
-    const { isConfirmed } = await Swal.fire({
-      title: "Confirm Trip?",
-      text: "Acknowledge that you have received the dispatch and are starting the trip.",
-      icon: "question",
+    
+    // Ask driver to select route first
+    const { value: route } = await Swal.fire({
+      title: "Select Your Route",
+      html: `
+        <p class="text-sm text-gray-600 mb-3">Which route will you take to Tuguegarao?</p>
+        <div class="flex flex-col gap-2">
+          <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="route" value="highway" class="mr-3" />
+            <div>
+              <strong>Highway Route</strong>
+              <p class="text-xs text-gray-500">Via Baybayog/Towns - stops if passengers need to get off</p>
+            </div>
+          </label>
+          <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="route" value="penablanca" class="mr-3" />
+            <div>
+              <strong>Penablanca Route</strong>
+              <p class="text-xs text-gray-500">Faster route - direct to Tuguegarao</p>
+            </div>
+          </label>
+        </div>
+      `,
       showCancelButton: true,
-      confirmButtonText: "Yes, Confirm",
+      confirmButtonText: "Confirm & Start",
+      cancelButtonText: "Cancel",
+      preConfirm: () => {
+        const selected = document.querySelector('input[name="route"]:checked');
+        return selected?.value;
+      }
     });
-    if (!isConfirmed) return;
+
+    if (!route) return;
+    
     try {
-      await queueAPI.confirm(queueStatus._id || queueStatus.id);
-      Swal.fire({ title: "Trip Confirmed!", text: "Tracking enabled.", icon: "success" });
+      await queueAPI.confirm(queueStatus._id || queueStatus.id, route);
+      Swal.fire({ 
+        title: "Trip Confirmed!", 
+        html: `Route: <strong>${route === 'highway' ? 'Highway' : 'Penablanca'}</strong><br/>Tracking enabled.`,
+        icon: "success" 
+      });
       loadData();
+      if (activeTab === "map") loadRoute();
     } catch (err) {
       Swal.fire({ title: "Error", text: err.message || "Failed to confirm", icon: "error" });
     }

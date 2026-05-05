@@ -10,20 +10,12 @@ const transactionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Queue'
   },
-  dispatcherId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  feeAmount: {
-    type: Number,
-    default: 10.00
-  },
   feeType: {
     type: String,
-    enum: ['terminal_fee', 'penalty', 'other'],
+    enum: ['terminal_fee', 'trip_fare', 'pending_trip'],
     default: 'terminal_fee'
   },
-  // Fare & Route data
+  // Route data
   routeOrigin: {
     type: String,
     default: null
@@ -32,20 +24,39 @@ const transactionSchema = new mongoose.Schema({
     type: String,
     default: null
   },
-  distanceKm: {
-    type: Number,
+  routeTaken: {
+    type: String,
+    enum: ['highway', 'penablanca', null],
     default: null
   },
-  durationMinutes: {
+  // Fixed fare passenger counts
+  regularCount: {
     type: Number,
-    default: null
+    default: 0
   },
+  seniorStudentCount: {
+    type: Number,
+    default: 0
+  },
+  // Fare calculation
   baseFare: {
     type: Number,
-    default: null
+    default: 150
   },
-  passengerFare: {
+  discountedFare: {
     type: Number,
+    default: 130
+  },
+  totalFare: {
+    type: Number,
+    default: 0
+  },
+  isRecorded: {
+    type: Boolean,
+    default: false
+  },
+  recordedAt: {
+    type: Date,
     default: null
   },
   notes: String

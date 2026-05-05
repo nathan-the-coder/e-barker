@@ -48,7 +48,7 @@ router.get('/my-status', verifyToken, async (req, res) => {
 
   const status = await Queue.findOne({
     driverId: driver_id,
-    status: { $in: ['Waiting', 'On-trip'] }
+    status: { $in: ['Waiting', 'On-trip', 'Confirmed'] }
   })
     .populate('vehicleId', 'bodyNumber vehicleType')
     .sort({ checkInTime: -1 })
@@ -160,7 +160,7 @@ router.post('/dispatch/:id', verifyToken, requireRole(['dispatcher', 'admin']), 
   res.json({ entry: updated });
 });
 
-// Complete trip
+// Complete trip - driver returns to terminal, waiting for fee collector to record
 router.post('/complete/:id', verifyToken, requireRole(['driver']), async (req, res) => {
   const { id } = req.params;
 
@@ -174,55 +174,39 @@ router.post('/complete/:id', verifyToken, requireRole(['driver']), async (req, r
     return errorResponse(res, 'Queue entry is not On-trip');
   }
 
-  // Calculate fare based on distance
-  let calculatedFare = 0;
-  const baseFareSetting = await Setting.findOne({ key: 'base_fare' });
-  const perKmSetting = await Setting.findOne({ key: 'per_km_rate' });
-  
-  const baseFare = parseFloat(baseFareSetting?.value) || 100;
-  const perKm = parseFloat(perKmSetting?.value) || 2.0;
-  
-  if (entry.distanceKm && entry.distanceKm > 0) {
-    calculatedFare = baseFare + (entry.distanceKm * perKm);
-    entry.calculatedFare = parseFloat(calculatedFare.toFixed(2));
-  }
-
-  // Mark as completed
+  // Mark as completed - driver returned to terminal
   entry.status = 'Completed';
   entry.completedTime = new Date();
   await entry.save();
 
-  // Create transaction with fare amount
-  await Transaction.create({
+  // Create a pending trip record (waiting for passenger count from fee collector)
+  const transaction = await Transaction.create({
     driverId: entry.driverId,
     queueId: entry._id,
-    dispatcherId: entry.dispatcherId,
-    feeAmount: calculatedFare,
-    feeType: 'trip_fare',
-    routeOrigin: entry.routeOrigin,
-    routeDestination: entry.routeDestination,
-    distanceKm: entry.distanceKm,
-    baseFare: baseFare,
-    passengerFare: calculatedFare
+    feeType: 'pending_trip',
+    routeOrigin: entry.routeOrigin || 'Baggao',
+    routeDestination: entry.routeDestination || 'Tuguegarao',
+    routeTaken: entry.routeTaken,
+    regularCount: 0,
+    seniorStudentCount: 0,
+    totalFare: 0,
+    isRecorded: false
   });
 
-  // Automatically add new waiting entry (re-enter queue)
-  await Queue.create({
-    driverId: entry.driverId,
-    vehicleId: entry.vehicleId,
-    status: 'Waiting'
-  });
+  // DO NOT auto-rejoin queue - fee collector must confirm return first
+  // But driver can rejoin queue themselves via normal join endpoint
 
   res.json({ 
-    message: 'Trip completed successfully',
-    calculatedFare: calculatedFare,
-    distanceKm: entry.distanceKm
+    message: 'Trip completed. Please wait for fee collector to record passenger details.',
+    completedTime: entry.completedTime,
+    pendingTransactionId: transaction._id
   });
 });
 
-// Confirm trip (driver confirms after dispatch)
+// Confirm trip (driver confirms after dispatch and selects route)
 router.post('/confirm/:id', verifyToken, requireRole(['driver']), async (req, res) => {
   const { id } = req.params;
+  const { route_taken } = req.body; // 'highway' or 'penablanca'
 
   const entry = await Queue.findById(id);
 
@@ -234,9 +218,17 @@ router.post('/confirm/:id', verifyToken, requireRole(['driver']), async (req, re
     return errorResponse(res, 'Queue entry must be On-trip to confirm');
   }
 
-  // Mark as Confirmed - driver acknowledged the dispatch
+  // Validate route
+  if (route_taken && !['highway', 'penablanca'].includes(route_taken)) {
+    return errorResponse(res, 'Invalid route. Must be "highway" or "penablanca"');
+  }
+
+  // Mark as Confirmed - driver acknowledged the dispatch and selected route
   entry.status = 'Confirmed';
   entry.confirmedTime = new Date();
+  if (route_taken) {
+    entry.routeTaken = route_taken;
+  }
   await entry.save();
 
   await entry.populate('driverId', 'name');
@@ -643,6 +635,115 @@ router.get('/my-route', verifyToken, requireRole(['driver']), async (req, res) =
   }
 
   res.json({ active: false, trip: null });
+});
+
+// Get pending trips (awaiting passenger recording)
+router.get('/pending', verifyToken, requireRole(['dispatcher', 'admin', 'driver']), async (req, res) => {
+  const pendingTransactions = await Transaction.find({ 
+    feeType: 'pending_trip',
+    isRecorded: false 
+  })
+  .populate('driverId', 'name')
+  .populate('queueId', 'routeTaken completedTime')
+  .sort({ createdAt: -1 })
+  .limit(20)
+  .exec();
+
+  res.json({ pending: pendingTransactions });
+});
+
+// Record passenger count and confirm driver return
+router.post('/record-trip/:id', verifyToken, requireRole(['dispatcher', 'admin']), async (req, res) => {
+  const { id } = req.params;
+  const { regular_count, senior_student_count, add_to_queue } = req.body;
+
+  const transaction = await Transaction.findById(id);
+
+  if (!transaction) {
+    return notFound(res, 'Transaction not found');
+  }
+
+  if (transaction.isRecorded) {
+    return errorResponse(res, 'Trip already recorded');
+  }
+
+  // Parse passenger counts
+  const regularCount = parseInt(regular_count) || 0;
+  const seniorStudentCount = parseInt(senior_student_count) || 0;
+
+  // Calculate total fare (fixed: ₱150 regular, ₱130 senior/student)
+  const baseFare = 150;
+  const discountedFare = 130;
+  const totalFare = (regularCount * baseFare) + (seniorStudentCount * discountedFare);
+
+  // Update transaction
+  transaction.regularCount = regularCount;
+  transaction.seniorStudentCount = seniorStudentCount;
+  transaction.totalFare = totalFare;
+  transaction.isRecorded = true;
+  transaction.recordedAt = new Date();
+  transaction.feeType = 'trip_fare';
+  await transaction.save();
+
+  // If add_to_queue is true, create new queue entry for driver
+  if (add_to_queue && transaction.driverId) {
+    await Queue.create({
+      driverId: transaction.driverId,
+      status: 'Waiting'
+    });
+  }
+
+  res.json({ 
+    message: 'Trip recorded successfully',
+    transaction: {
+      regularCount,
+      seniorStudentCount,
+      totalFare,
+      routeTaken: transaction.routeTaken
+    },
+    driverRejoinedQueue: add_to_queue
+  });
+});
+
+// Get recorded trips (for reports)
+router.get('/recorded-trips', verifyToken, requireRole(['dispatcher', 'admin']), async (req, res) => {
+  const { start_date, end_date, driver_id } = req.query;
+  
+  const query = { 
+    feeType: 'trip_fare',
+    isRecorded: true
+  };
+
+  if (start_date || end_date) {
+    query.createdAt = {};
+    if (start_date) query.createdAt.$gte = new Date(start_date);
+    if (end_date) {
+      const end = new Date(end_date);
+      end.setHours(23, 59, 59);
+      query.createdAt.$lte = end;
+    }
+  }
+
+  if (driver_id && driver_id !== 'undefined') {
+    query.driverId = driver_id;
+  }
+
+  const trips = await Transaction.find(query)
+    .populate('driverId', 'name')
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .exec();
+
+  // Calculate totals
+  const totals = trips.reduce((acc, trip) => {
+    return {
+      totalTrips: acc.totalTrips + 1,
+      totalPassengers: acc.totalPassengers + (trip.regularCount + trip.seniorStudentCount),
+      totalRevenue: acc.totalRevenue + trip.totalFare
+    };
+  }, { totalTrips: 0, totalPassengers: 0, totalRevenue: 0 });
+
+  res.json({ trips, totals });
 });
 
 export default router;

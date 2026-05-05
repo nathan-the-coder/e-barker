@@ -83,9 +83,10 @@ export const queueAPI = {
         distance_km: opts.distanceKm || null,
       }),
     }),
-  confirm: (id) =>
+  confirm: (id, routeTaken) =>
     apiRequest(`/queue/confirm/${id}`, {
       method: "POST",
+      body: JSON.stringify({ route_taken: routeTaken || null }),
     }),
   updateLocation: (id, lat, lng) =>
     apiRequest(`/queue/location/${id}`, {
@@ -107,6 +108,24 @@ export const queueAPI = {
   getMyTrips: (driverId, start, end) =>
     apiRequest(`/queue/my-trips?driver_id=${driverId}&start=${start || ''}&end=${end || ''}`),
   getMyRoute: (driverId) => apiRequest(`/queue/my-route?driver_id=${driverId}`),
+  getPending: () => apiRequest("/queue/pending"),
+  recordTrip: (id, regularCount, seniorStudentCount, addToQueue) =>
+    apiRequest(`/queue/record-trip/${id}`, {
+      method: "POST",
+      body: JSON.stringify({ 
+        regular_count: regularCount,
+        senior_student_count: seniorStudentCount,
+        add_to_queue: addToQueue
+      }),
+    }),
+  getRecordedTrips: (startDate, endDate, driverId) => {
+    let url = "/queue/recorded-trips?";
+    const params = [];
+    if (startDate) params.push(`start_date=${startDate}`);
+    if (endDate) params.push(`end_date=${endDate}`);
+    if (driverId) params.push(`driver_id=${driverId}`);
+    return apiRequest(url + params.join("&"));
+  },
 };
 
 // ─── Transactions ────────────────────────────────────────────────────────────
