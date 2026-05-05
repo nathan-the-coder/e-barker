@@ -86,7 +86,7 @@ router.post('/', verifyToken, requireRole(['admin']), async (req, res) => {
 
 // Update user (admin only)
 router.put('/:id', verifyToken, requireRole(['admin']), async (req, res) => {
-  const { username, email, name, phone, role } = req.body;
+  const { username, email, name, phone, role, vehicleId } = req.body;
 
   const user = await User.findById(req.params.id);
   if (!user) {
@@ -101,7 +101,23 @@ router.put('/:id', verifyToken, requireRole(['admin']), async (req, res) => {
     user.role = role;
   }
 
+  // Handle vehicle assignment
+  if (vehicleId !== undefined) {
+    // If setting a vehicle, first clear any existing assignment
+    if (vehicleId && user.vehicleId && user.vehicleId.toString() !== vehicleId) {
+      await Vehicle.findByIdAndUpdate(user.vehicleId, { driverId: null });
+    }
+    
+    user.vehicleId = vehicleId || null;
+    
+    // If assigning a vehicle, also update the vehicle's driverId
+    if (vehicleId) {
+      await Vehicle.findByIdAndUpdate(vehicleId, { driverId: user._id });
+    }
+  }
+
   await user.save();
+  await user.populate('vehicleId', 'bodyNumber plateNumber');
 
   const userObj = user.toObject();
   delete userObj.password;

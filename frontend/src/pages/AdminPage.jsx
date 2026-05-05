@@ -14,6 +14,7 @@ function AdminPage() {
   const [activeTab, setActiveTab] = useState('drivers');
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [assigningVehicle, setAssigningVehicle] = useState(false);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -61,6 +62,44 @@ function AdminPage() {
     } finally {
       setSavingSettings(false);
     }
+  };
+
+  const handleAssignVehicle = async (driverId, vehicleId) => {
+    setAssigningVehicle(true);
+    try {
+      await userAPI.update(driverId, { vehicleId: vehicleId || null });
+      await loadData();
+      Swal.fire({ title: 'Vehicle Assigned!', icon: 'success', timer: 1500, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire({ title: 'Error', text: err.message || 'Failed to assign vehicle', icon: 'error' });
+    } finally {
+      setAssigningVehicle(false);
+    }
+  };
+
+  const showVehicleAssignModal = (driver) => {
+    const availableVehicles = vehicles.filter(v => !v.driverId || v.driverId._id === driver._id);
+    
+    Swal.fire({
+      title: `Assign Vehicle to ${driver.name}`,
+      html: `
+        <select id="vehicleSelect" class="swal2-select w-full mt-2">
+          <option value="">-- No Vehicle --</option>
+          ${vehicles.map(v => `
+            <option value="${v._id}" ${driver.vehicleId?._id === v._id ? 'selected' : ''}>
+              ${v.bodyNumber} (${v.plateNumber}) - ${v.vehicleType || 'PUV Van'}
+            </option>
+          `).join('')}
+        </select>
+      `,
+      preConfirm: () => {
+        const vehicleId = document.getElementById('vehicleSelect').value;
+        return handleAssignVehicle(driver._id, vehicleId || null);
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Assign',
+      cancelButtonText: 'Cancel'
+    });
   };
 
   if (loading) {
@@ -159,23 +198,33 @@ function AdminPage() {
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Body #</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Contact</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Status</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {drivers.length === 0 && (
-                        <tr><td colSpan={5} className="text-center text-gray-500 py-6">No drivers registered</td></tr>
-                      )}
-                       {drivers.map(d => (
-                         <tr key={d._id} className="hover:bg-gray-50">
-                           <td className="px-4 py-3 font-medium">{d.name}</td>
-                           <td className="px-4 py-3 text-gray-500">{d.username}</td>
-                           <td className="px-4 py-3"><span className="bg-indigo-900 text-white px-2 py-1 rounded text-xs">{d.vehicleId?.bodyNumber || '—'}</span></td>
-                           <td className="px-4 py-3">{d.phone || '—'}</td>
-                           <td className="px-4 py-3"><span className={`px-2 py-1 rounded text-xs ${d.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                             {d.isActive !== false ? 'Active' : 'Inactive'}
-                           </span></td>
-                         </tr>
-                       ))}
+{drivers.length === 0 && (
+                        <tr><td colSpan={6} className="text-center text-gray-500 py-6">No drivers registered</td></tr>
+                       )}
+                        {drivers.map(d => (
+                          <tr key={d._id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 font-medium">{d.name}</td>
+                            <td className="px-4 py-3 text-gray-500">{d.username}</td>
+                            <td className="px-4 py-3"><span className="bg-indigo-900 text-white px-2 py-1 rounded text-xs">{d.vehicleId?.bodyNumber || '—'}</span></td>
+                            <td className="px-4 py-3">{d.phone || '—'}</td>
+                            <td className="px-4 py-3"><span className={`px-2 py-1 rounded text-xs ${d.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                              {d.isActive !== false ? 'Active' : 'Inactive'}
+                            </span></td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => showVehicleAssignModal(d)}
+                                className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                                disabled={assigningVehicle}
+                              >
+                                {d.vehicleId ? 'Change' : 'Assign'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>

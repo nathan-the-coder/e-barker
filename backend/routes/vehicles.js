@@ -105,6 +105,23 @@ router.delete('/:id', verifyToken, requireRole(['admin']), async (req, res) => {
 router.post('/:id/assign', verifyToken, requireRole(['admin', 'dispatcher']), async (req, res) => {
   const { driverId } = req.body;
 
+  // If unassigning (driverId is null), just clear the link
+  if (driverId === null || driverId === '') {
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) {
+      return notFound(res, 'Vehicle not found');
+    }
+    
+    // Clear vehicle's driverId
+    if (vehicle.driverId) {
+      await User.findByIdAndUpdate(vehicle.driverId, { vehicleId: null });
+    }
+    vehicle.driverId = null;
+    await vehicle.save();
+    
+    return res.json({ message: 'Vehicle unassigned successfully' });
+  }
+
   if (!driverId) {
     return errorResponse(res, 'driverId required');
   }
@@ -118,7 +135,16 @@ router.post('/:id/assign', verifyToken, requireRole(['admin', 'dispatcher']), as
     return errorResponse(res, 'Invalid driver');
   }
 
-  // Unassign from previous driver
+  // Unassign vehicle from previous driver (if any)
+  const previousVehicle = await Vehicle.findOne({ driverId });
+  if (previousVehicle) {
+    previousVehicle.driverId = null;
+    await previousVehicle.save();
+    // Also clear previous driver's vehicleId
+    await User.findByIdAndUpdate(driverId, { vehicleId: null });
+  }
+
+  // Unassign driver from previous vehicle (if any)
   await Vehicle.updateMany(
     { driverId },
     { $set: { driverId: null } }
@@ -132,6 +158,9 @@ router.post('/:id/assign', verifyToken, requireRole(['admin', 'dispatcher']), as
 
   vehicle.driverId = driverId;
   await vehicle.save();
+
+  // Also update driver's vehicleId for bidirectional sync
+  await User.findByIdAndUpdate(driverId, { vehicleId: vehicle._id });
 
   res.json({ message: 'Vehicle assigned successfully' });
 });
