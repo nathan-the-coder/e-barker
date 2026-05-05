@@ -174,10 +174,37 @@ router.post('/complete/:id', verifyToken, requireRole(['driver']), async (req, r
     return errorResponse(res, 'Queue entry is not On-trip');
   }
 
+  // Calculate fare based on distance
+  let calculatedFare = 0;
+  const baseFareSetting = await Setting.findOne({ key: 'base_fare' });
+  const perKmSetting = await Setting.findOne({ key: 'per_km_rate' });
+  
+  const baseFare = parseFloat(baseFareSetting?.value) || 100;
+  const perKm = parseFloat(perKmSetting?.value) || 2.0;
+  
+  if (entry.distanceKm && entry.distanceKm > 0) {
+    calculatedFare = baseFare + (entry.distanceKm * perKm);
+    entry.calculatedFare = parseFloat(calculatedFare.toFixed(2));
+  }
+
   // Mark as completed
   entry.status = 'Completed';
   entry.completedTime = new Date();
   await entry.save();
+
+  // Create transaction with fare amount
+  await Transaction.create({
+    driverId: entry.driverId,
+    queueId: entry._id,
+    dispatcherId: entry.dispatcherId,
+    feeAmount: calculatedFare,
+    feeType: 'trip_fare',
+    routeOrigin: entry.routeOrigin,
+    routeDestination: entry.routeDestination,
+    distanceKm: entry.distanceKm,
+    baseFare: baseFare,
+    passengerFare: calculatedFare
+  });
 
   // Automatically add new waiting entry (re-enter queue)
   await Queue.create({
@@ -186,7 +213,11 @@ router.post('/complete/:id', verifyToken, requireRole(['driver']), async (req, r
     status: 'Waiting'
   });
 
-  res.json({ message: 'Trip completed successfully' });
+  res.json({ 
+    message: 'Trip completed successfully',
+    calculatedFare: calculatedFare,
+    distanceKm: entry.distanceKm
+  });
 });
 
 // Confirm trip (driver confirms after dispatch)
@@ -233,10 +264,26 @@ router.post('/location/:id', verifyToken, requireRole(['driver']), async (req, r
     return errorResponse(res, 'Queue entry must be On-trip or Confirmed');
   }
 
-  // Update location
+  // Update current location
   entry.currentLat = parseFloat(lat);
   entry.currentLng = parseFloat(lng);
   entry.lastLocationUpdate = new Date();
+
+  // Push to location history
+  if (!entry.locationHistory) {
+    entry.locationHistory = [];
+  }
+  entry.locationHistory.push({
+    lat: parseFloat(lat),
+    lng: parseFloat(lng),
+    timestamp: new Date()
+  });
+
+  // Keep only last 500 location points to prevent document bloat
+  if (entry.locationHistory.length > 500) {
+    entry.locationHistory = entry.locationHistory.slice(-500);
+  }
+
   await entry.save();
 
   res.json({
@@ -448,5 +495,154 @@ function getCongestionLevel(normalDuration, trafficDuration) {
   if (ratio <= 1.3) return 'moderate';
   return 'heavy';
 }
+
+// Get driver's completed trips with earnings
+router.get('/my-trips', verifyToken, requireRole(['driver']), async (req, res) => {
+  const { driver_id } = req.query;
+  const { start, end } = req.query;
+
+  if (!driver_id || !mongoose.Types.ObjectId.isValid(driver_id)) {
+    return errorResponse(res, 'Valid driver_id is required');
+  }
+
+  const query = {
+    driverId: driver_id,
+    status: 'Completed'
+  };
+
+  // Date filter
+  if (start || end) {
+    query.completedTime = {};
+    if (start) query.completedTime.$gte = new Date(start);
+    if (end) {
+      const endDate = new Date(end);
+      endDate.setHours(23, 59, 59, 999);
+      query.completedTime.$lte = endDate;
+    }
+  }
+
+  const trips = await Queue.find(query)
+    .populate('vehicleId', 'bodyNumber vehicleType')
+    .sort({ completedTime: -1 })
+    .limit(50)
+    .exec();
+
+  // Get earnings from transactions
+  const transactions = await Transaction.find({
+    driverId: driver_id,
+    feeType: 'trip_fare'
+  }).sort({ createdAt: -1 }).limit(50);
+
+  // Map transactions to trips
+  const tripEarnings = {};
+  transactions.forEach(t => {
+    if (t.queueId) {
+      tripEarnings[t.queueId.toString()] = t.feeAmount;
+    }
+  });
+
+  // Calculate totals
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+
+  let todayEarnings = 0;
+  let weekEarnings = 0;
+
+  const tripsWithEarnings = trips.map(trip => {
+    const earnings = tripEarnings[trip._id.toString()] || trip.calculatedFare || 0;
+    
+    if (trip.completedTime && new Date(trip.completedTime) >= today) {
+      todayEarnings += earnings;
+    }
+    if (trip.completedTime && new Date(trip.completedTime) >= weekAgo) {
+      weekEarnings += earnings;
+    }
+
+    return {
+      _id: trip._id,
+      completedTime: trip.completedTime,
+      routeOrigin: trip.routeOrigin,
+      routeDestination: trip.routeDestination,
+      distanceKm: trip.distanceKm,
+      calculatedFare: earnings,
+      vehicleId: trip.vehicleId
+    };
+  });
+
+  res.json({
+    trips: tripsWithEarnings,
+    summary: {
+      todayEarnings: parseFloat(todayEarnings.toFixed(2)),
+      weekEarnings: parseFloat(weekEarnings.toFixed(2)),
+      totalTrips: trips.length
+    }
+  });
+});
+
+// Get driver's current/recent trip route for map display
+router.get('/my-route', verifyToken, requireRole(['driver']), async (req, res) => {
+  const { driver_id } = req.query;
+
+  if (!driver_id || !mongoose.Types.ObjectId.isValid(driver_id)) {
+    return errorResponse(res, 'Valid driver_id is required');
+  }
+
+  // Get active trip first, then most recent completed
+  const activeTrip = await Queue.findOne({
+    driverId: driver_id,
+    status: { $in: ['On-trip', 'Confirmed'] }
+  }).populate('vehicleId', 'bodyNumber vehicleType');
+
+  if (activeTrip) {
+    return res.json({
+      active: true,
+      trip: {
+        _id: activeTrip._id,
+        status: activeTrip.status,
+        routeOrigin: activeTrip.routeOrigin,
+        routeDestination: activeTrip.routeDestination,
+        routePolyline: activeTrip.routePolyline,
+        distanceKm: activeTrip.distanceKm,
+        currentLat: activeTrip.currentLat,
+        currentLng: activeTrip.currentLng,
+        locationHistory: activeTrip.locationHistory || [],
+        lastLocationUpdate: activeTrip.lastLocationUpdate,
+        vehicleId: activeTrip.vehicleId
+      }
+    });
+  }
+
+  // No active trip - get most recent completed trip for route replay
+  const recentTrip = await Queue.findOne({
+    driverId: driver_id,
+    status: 'Completed',
+    locationHistory: { $exists: true, $ne: [] }
+  })
+    .sort({ completedTime: -1 })
+    .populate('vehicleId', 'bodyNumber vehicleType');
+
+  if (recentTrip) {
+    return res.json({
+      active: false,
+      trip: {
+        _id: recentTrip._id,
+        status: recentTrip.status,
+        routeOrigin: recentTrip.routeOrigin,
+        routeDestination: recentTrip.routeDestination,
+        routePolyline: recentTrip.routePolyline,
+        distanceKm: recentTrip.distanceKm,
+        completedTime: recentTrip.completedTime,
+        calculatedFare: recentTrip.calculatedFare,
+        locationHistory: recentTrip.locationHistory || [],
+        vehicleId: recentTrip.vehicleId
+      }
+    });
+  }
+
+  res.json({ active: false, trip: null });
+});
 
 export default router;

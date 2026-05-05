@@ -104,6 +104,9 @@ export const queueAPI = {
   getDrivers: () => apiRequest("/users/drivers/list"),
   getTraffic: (origin, destination) => getTrafficData(origin, destination),
   getTracking: () => apiRequest("/queue/tracking"),
+  getMyTrips: (driverId, start, end) =>
+    apiRequest(`/queue/my-trips?driver_id=${driverId}&start=${start || ''}&end=${end || ''}`),
+  getMyRoute: (driverId) => apiRequest(`/queue/my-route?driver_id=${driverId}`),
 };
 
 // ─── Transactions ────────────────────────────────────────────────────────────

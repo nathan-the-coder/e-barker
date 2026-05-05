@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { queueAPI, fareAPI } from "../utils/api";
 
+const GMAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+
 function DriverPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -14,6 +16,16 @@ function DriverPage() {
   const [fareMatrix, setFareMatrix] = useState(null);
   const timerRef = useRef(null);
   const locationTimerRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const driverMarkerRef = useRef(null);
+  const routePolylineRef = useRef(null);
+
+  const [activeTab, setActiveTab] = useState("queue");
+  const [trips, setTrips] = useState([]);
+  const [tripsSummary, setTripsSummary] = useState({ todayEarnings: 0, weekEarnings: 0, totalTrips: 0 });
+  const [tripRoute, setTripRoute] = useState(null);
+  const [mapsLoaded, setMapsLoaded] = useState(false);
+  const [mapExpanded, setMapExpanded] = useState(false);
 
   const getDriverId = () => user?.id || user?._id;
 
@@ -33,6 +45,29 @@ function DriverPage() {
     } catch (err) {
       console.error("Error loading data:", err);
       setLoading(false);
+    }
+  };
+
+  const loadTrips = async () => {
+    const driverId = getDriverId();
+    if (!driverId) return;
+    try {
+      const data = await queueAPI.getMyTrips(driverId);
+      setTrips(data.trips || []);
+      setTripsSummary(data.summary || { todayEarnings: 0, weekEarnings: 0, totalTrips: 0 });
+    } catch (err) {
+      console.error("Error loading trips:", err);
+    }
+  };
+
+  const loadRoute = async () => {
+    const driverId = getDriverId();
+    if (!driverId) return;
+    try {
+      const data = await queueAPI.getMyRoute(driverId);
+      setTripRoute(data.trip);
+    } catch (err) {
+      console.error("Error loading route:", err);
     }
   };
 
@@ -70,6 +105,160 @@ function DriverPage() {
     const iv = setInterval(loadData, 30000);
     return () => clearInterval(iv);
   }, [user]);
+
+  useEffect(() => {
+    if (activeTab === "trips") {
+      loadTrips();
+    } else if (activeTab === "map") {
+      loadRoute();
+      if (!mapsLoaded && GMAPS_API_KEY) {
+        loadGoogleMaps();
+      }
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "map" && mapsLoaded && mapInstanceRef.current) {
+      updateMapDisplay();
+    }
+  }, [tripRoute, mapsLoaded]);
+
+  useEffect(() => {
+    if (activeTab === "map" && mapsLoaded) {
+      const routeInterval = setInterval(() => {
+        loadRoute();
+      }, 15000);
+      return () => clearInterval(routeInterval);
+    }
+  }, [activeTab, mapsLoaded, tripRoute]);
+
+  const loadGoogleMaps = () => {
+    if (window.google?.maps) {
+      setMapsLoaded(true);
+      return;
+    }
+    if (!GMAPS_API_KEY) return;
+
+    const existing = document.getElementById("gmaps-script-driver");
+    if (existing) {
+      existing.onload = () => setMapsLoaded(true);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = "gmaps-script-driver";
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_API_KEY}&libraries=geometry`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setMapsLoaded(true);
+    document.head.appendChild(script);
+  };
+
+  const initMap = () => {
+    if (!mapInstanceRef.current || !window.google?.maps) return;
+
+    const terminalLocation = { lat: 17.9483, lng: 121.7886 };
+    new window.google.maps.Map(document.getElementById("driver-map"), {
+      center: terminalLocation,
+      zoom: 13,
+      mapTypeControl: false,
+      fullscreenControl: false,
+      streetViewControl: false,
+      zoomControl: true,
+    });
+  };
+
+  const updateMapDisplay = () => {
+    if (!window.google?.maps || !tripRoute) return;
+
+    const mapDiv = document.getElementById("driver-map");
+    if (!mapDiv) return;
+
+    if (!mapInstanceRef.current) {
+      mapInstanceRef.current = new window.google.maps.Map(mapDiv, {
+        center: { lat: 17.9483, lng: 121.7886 },
+        zoom: 13,
+        mapTypeControl: false,
+        fullscreenControl: true,
+        streetViewControl: false,
+        zoomControl: true,
+      });
+    }
+
+    const map = mapInstanceRef.current;
+
+    if (driverMarkerRef.current) {
+      driverMarkerRef.current.setMap(null);
+    }
+
+    if (routePolylineRef.current) {
+      routePolylineRef.current.setMap(null);
+    }
+
+    const hasLocation = tripRoute.currentLat && tripRoute.currentLng;
+    const hasHistory = tripRoute.locationHistory?.length > 0;
+
+    if (hasLocation) {
+      driverMarkerRef.current = new window.google.maps.Marker({
+        position: { lat: tripRoute.currentLat, lng: tripRoute.currentLng },
+        map: map,
+        title: "Your Location",
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 14,
+          fillColor: "#4caf50",
+          fillOpacity: 1,
+          strokeColor: "#fff",
+          strokeWeight: 3,
+        },
+      });
+      map.setCenter({ lat: tripRoute.currentLat, lng: tripRoute.currentLng });
+      map.setZoom(15);
+    } else if (hasHistory && tripRoute.locationHistory.length > 0) {
+      const lastPoint = tripRoute.locationHistory[tripRoute.locationHistory.length - 1];
+      map.setCenter({ lat: lastPoint.lat, lng: lastPoint.lng });
+    }
+
+    if (tripRoute.routePolyline) {
+      try {
+        const path = window.google.maps.geometry.encoding.decodePath(tripRoute.routePolyline);
+        routePolylineRef.current = new window.google.maps.Polyline({
+          path: path,
+          geodesic: true,
+          strokeColor: "#1a237e",
+          strokeOpacity: 0.8,
+          strokeWeight: 5,
+        });
+        routePolylineRef.current.setMap(map);
+      } catch (e) {
+        console.error("Failed to decode polyline:", e);
+      }
+    } else if (hasHistory) {
+      const path = tripRoute.locationHistory.map(p => ({ lat: p.lat, lng: p.lng }));
+      routePolylineRef.current = new window.google.maps.Polyline({
+        path: path,
+        geodesic: true,
+        strokeColor: "#1976d2",
+        strokeOpacity: 0.8,
+        strokeWeight: 4,
+      });
+      routePolylineRef.current.setMap(map);
+    }
+  };
+
+  useEffect(() => {
+    if (mapsLoaded && activeTab === "map" && document.getElementById("driver-map")) {
+      initMap();
+      setTimeout(updateMapDisplay, 300);
+    }
+  }, [mapsLoaded, activeTab]);
+
+  const openNavigation = () => {
+    if (!tripRoute?.routeDestination) return;
+    const dest = tripRoute.routeDestination;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}`;
+    window.open(url, "_blank");
+  };
 
   const handleJoinQueue = async () => {
     const driverId = getDriverId();
@@ -188,9 +377,46 @@ function DriverPage() {
         </div>
       </nav>
 
-      <div className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 justify-center">
-          <div className="lg:col-span-2">
+      <div className="container mx-auto px-4 py-4">
+        <div className="flex gap-2 mb-4 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab("queue")}
+            className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition ${
+              activeTab === "queue"
+                ? "bg-indigo-900 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50 border"
+            }`}
+          >
+            <i className="fa-solid fa-users mr-2"></i>Queue
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("trips")}
+            className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition ${
+              activeTab === "trips"
+                ? "bg-green-600 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50 border"
+            }`}
+          >
+            <i className="fa-solid fa-peso-sign mr-2"></i>My Trips
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("map")}
+            className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition ${
+              activeTab === "map"
+                ? "bg-blue-600 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50 border"
+            }`}
+          >
+            <i className="fa-solid fa-map mr-2"></i>Map
+          </button>
+        </div>
+
+        {activeTab === "queue" && (
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 justify-center">
+            <div className="lg:col-span-2">
             {!queueStatus ? (
               <div className="bg-white rounded-xl shadow-md text-center py-8 px-6">
                 <i className="fa-solid fa-taxi text-5xl text-gray-300 mb-4"></i>
@@ -337,8 +563,130 @@ function DriverPage() {
                 )}
               </div>
             </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {activeTab === "trips" && (
+          <div className="bg-white rounded-xl shadow-md p-4">
+            <h5 className="font-bold text-lg mb-4 flex items-center gap-2">
+              <i className="fa-solid fa-peso-sign text-green-600"></i>My Earnings
+            </h5>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg p-4">
+                <small className="opacity-75 block text-xs">Today</small>
+                <strong className="text-2xl">₱{tripsSummary.todayEarnings.toFixed(2)}</strong>
+              </div>
+              <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg p-4">
+                <small className="opacity-75 block text-xs">This Week</small>
+                <strong className="text-2xl">₱{tripsSummary.weekEarnings.toFixed(2)}</strong>
+              </div>
+              <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg p-4">
+                <small className="opacity-75 block text-xs">Total Trips</small>
+                <strong className="text-2xl">{tripsSummary.totalTrips}</strong>
+              </div>
+            </div>
+
+            <h6 className="font-bold mb-3 text-gray-600">Recent Trips</h6>
+            <div className="max-h-96 overflow-y-auto">
+              {trips.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">No completed trips yet</p>
+              ) : (
+                <div className="divide-y">
+                  {trips.map((trip) => (
+                    <div key={trip._id} className="px-4 py-3 hover:bg-gray-50">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-medium">
+                            {trip.routeOrigin || "Terminal"} → {trip.routeDestination || "Unknown"}
+                          </div>
+                          <small className="text-gray-500">
+                            {trip.completedTime ? new Date(trip.completedTime).toLocaleDateString() : ""}
+                            {trip.distanceKm && ` · ${trip.distanceKm} km`}
+                          </small>
+                        </div>
+                        <div className="text-right">
+                          <strong className="text-green-600 text-lg">₱{trip.calculatedFare?.toFixed(2) || "0.00"}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "map" && (
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="p-3 border-b flex justify-between items-center">
+              <h5 className="font-bold flex items-center gap-2 mb-0">
+                <i className="fa-solid fa-map text-blue-600"></i>Live Location
+              </h5>
+              <div className="flex gap-2">
+                {tripRoute?.routeDestination && (
+                  <button
+                    type="button"
+                    onClick={openNavigation}
+                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition"
+                  >
+                    <i className="fa-solid fa-location-arrow mr-1"></i>Navigate
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setMapExpanded(!mapExpanded)}
+                  className="border border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg text-sm transition"
+                >
+                  <i className={`fa-solid ${mapExpanded ? "fa-compress" : "fa-expand"}`}></i>
+                </button>
+              </div>
+            </div>
+            
+            {tripRoute && (
+              <div className="px-4 py-2 bg-blue-50 text-sm text-gray-600">
+                <div className="flex justify-between">
+                  <span>
+                    {tripRoute.active ? (
+                      <span className="text-green-600 font-medium">
+                        <i className="fa-solid fa-circle text-xs mr-1"></i>On Trip
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">No active trip</span>
+                    )}
+                  </span>
+                  {tripRoute.routeOrigin && tripRoute.routeDestination && (
+                    <span>{tripRoute.routeOrigin} → {tripRoute.routeDestination}</span>
+                  )}
+                  {tripRoute.distanceKm && (
+                    <span>{tripRoute.distanceKm} km</span>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            <div 
+              id="driver-map" 
+              className="w-full"
+              style={{ height: mapExpanded ? "calc(100vh - 180px)" : "400px" }}
+            >
+              {!mapsLoaded && (
+                <div className="flex flex-col items-center justify-center h-full bg-gray-100 text-gray-500 p-8">
+                  <i className="fa-solid fa-map text-4xl mb-3"></i>
+                  {!GMAPS_API_KEY ? (
+                    <>
+                      <p className="text-center">Google Maps not configured</p>
+                      <p className="text-xs text-gray-400">Add VITE_GOOGLE_MAPS_API_KEY to enable</p>
+                    </>
+                  ) : (
+                    <p>Loading map...</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

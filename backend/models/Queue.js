@@ -35,7 +35,13 @@ const queueSchema = new mongoose.Schema({
   currentLat: Number,
   currentLng: Number,
   distanceKm: Number,
-  lastLocationUpdate: Date
+  lastLocationUpdate: Date,
+  locationHistory: [{
+    lat: Number,
+    lng: Number,
+    timestamp: { type: Date, default: Date.now }
+  }],
+  calculatedFare: Number
 }, {
   timestamps: true
 });
