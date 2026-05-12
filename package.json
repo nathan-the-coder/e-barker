@@ -1,16 +1,11 @@
 {
   "name": "e-barker",
   "version": "1.0.0",
-  "description": "E-Barker fullstack application",
   "scripts": {
-    "dev": "concurrently \"npm run dev -w frontend\" \"npm run dev -w backend\"",
-    "dev:frontend": "npm run dev -w frontend",
-    "dev:backend": "npm run dev -w backend",
-    "build": "npm run build -w frontend",
-    "install:all": "npm install"
-  },
-  "devDependencies": {
-    "concurrently": "^9.1.0"
+    "dev": "pnpm -r --parallel dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend dev",
+    "build": "pnpm --filter frontend build"
   },
   "workspaces": [
     "frontend",
